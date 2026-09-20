@@ -5,7 +5,8 @@ Estensione Chrome locale per valutare operazioni sul mercato di EA SPORTS FC Ult
 ## Funzioni disponibili
 
 - pannello laterale integrato nella Web App;
-- monitor assistito: apre Trasferimenti, seleziona il giocatore e ripete la ricerca ogni 5 secondi, fino a 20 tentativi;
+- monitor assistito: apre Trasferimenti, seleziona il giocatore e ripete la ricerca ogni 2 secondi, fino a 20 tentativi;
+- rilevazione iniziale senza prezzo obbligatorio: legge le offerte visibili e compila acquisto e vendita consigliati senza selezionare una carta;
 - autocomplete locale basato su `data/players.json`, con nome, overall e prezzo EA osservato di recente quando disponibile;
 - 544 giocatori base Serie A (Oro e Argento) raccolti dal filtro pubblico FUTBIN della lega;
 - calcolo della tassa EA del 5%, utile netto, utile totale e ROI;
@@ -36,11 +37,13 @@ Se il pannello mostra `0 carte FUTBIN`, verifica che la versione dell’estensio
 1. Apri **27 MARKET** e inserisci il nome del giocatore come appare nella Web App.
 2. Imposta il prezzo massimo *Compra ora* e la rivendita prevista.
 3. Premi **Analizza e monitora**.
-4. Il monitor apre il mercato e ripete la ricerca ogni 5 secondi, per un massimo di 20 tentativi.
+4. Il monitor apre il mercato e ripete la ricerca ogni 2 secondi, per un massimo di 20 tentativi.
 5. Quando trova una carta entro il budget, la seleziona e la evidenzia.
 6. Controlla carta e prezzo, quindi decidi manualmente se acquistare.
 
 Il monitor non preme **Compra ora** e non conferma transazioni. Puoi fermarlo in qualsiasi momento.
+
+Per rilevare il prezzo di un giocatore nuovo, lascia vuoti **Prezzo acquisto** e **Vendita prevista**, quindi premi **Analizza e monitora**. La prima pagina con offerte viene usata soltanto per calcolare il riferimento locale; l’estensione compila i due prezzi consigliati e si ferma senza selezionare alcuna carta. Premi nuovamente il pulsante per avviare il monitor con quei valori.
 
 Le funzioni ispirate ai prodotti di trading automatico sono state implementate in forma assistita: pricing, punteggio, filtri, limiti e statistiche. Auto-acquisto, auto-vendita, auto-bid, aggiramento di CAPTCHA e simulazione “umana” non sono inclusi.
 

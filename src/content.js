@@ -43,11 +43,11 @@
         </label>
         <label class="fc27-field">
           <span>Prezzo acquisto</span>
-          <input name="buyPrice" inputmode="numeric" placeholder="12.000" required>
+          <input name="buyPrice" inputmode="numeric" placeholder="Vuoto = rileva prezzo">
         </label>
         <label class="fc27-field">
           <span>Vendita prevista</span>
-          <input name="sellPrice" inputmode="numeric" placeholder="14.500" required>
+          <input name="sellPrice" inputmode="numeric" placeholder="Calcolo automatico">
         </label>
         <label class="fc27-field">
           <span>Quantità</span>
@@ -66,7 +66,7 @@
       </form>
 
       <div class="fc27-scout-status" data-scout-status role="status" aria-live="polite">
-        <i></i><span>Pronto. Una ricerca ogni 5 secondi, massimo 20 tentativi.</span>
+        <i></i><span>Lascia vuoto il prezzo acquisto per rilevarlo. Ricerche ogni 2 secondi.</span>
       </div>
       <p class="fc27-risk">Si ferma prima di Compra ora. L’automazione può comunque violare le regole EA.</p>
 
@@ -156,7 +156,7 @@
   let scoutRun = 0;
   let playerIndex = [];
   let playerIndexState = "loading";
-  const SEARCH_INTERVAL_MS = 5000;
+  const SEARCH_INTERVAL_MS = 2000;
   const MAX_ATTEMPTS = 20;
 
   function setOpen(open) {
@@ -276,13 +276,14 @@
 
   async function recordMarketSnapshot(player, listings) {
     const priceSummary = FcMarket.summarizePrices(listings.map((listing) => listing.buyNow));
-    if (!priceSummary) return;
+    if (!priceSummary) return null;
     const snapshot = { id: crypto.randomUUID(), player, timestamp: Date.now(), source: "ea-web-app-visible-results", ...priceSummary };
     settings.marketHistory = [snapshot, ...marketHistory()].slice(0, 120);
     await storage.set({ marketHistory: settings.marketHistory });
     renderMarketInsights(player);
     const indexedPlayer = playerIndex.find((entry) => FcMarket.normalizeSearchText(entry.name) === FcMarket.normalizeSearchText(player));
     updatePlayerMeta(indexedPlayer);
+    return snapshot;
   }
 
   async function recordActivity(kind) {
@@ -535,6 +536,7 @@
 
   async function runScout({ playerName, maximumBuy, expectedSale }) {
     const runId = ++scoutRun;
+    const discoveryOnly = !maximumBuy;
     shell.querySelector("[data-scout-start]").disabled = true;
     shell.querySelector("[data-scout-stop]").hidden = false;
     document.querySelectorAll(".fc27-scout-match").forEach((node) => node.classList.remove("fc27-scout-match"));
@@ -585,17 +587,34 @@
         const inputs = [...document.querySelectorAll("input.ut-number-input-control")].filter(isElementVisible);
         return inputs.length >= 6 ? inputs : null;
       }, 7000, 80, runId, "Campo Prezzo Compra ora massimo non trovato");
-      setNativeValue(priceInputs.at(-1), maximumBuy);
+      setNativeValue(priceInputs.at(-1), discoveryOnly ? "" : maximumBuy);
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-        updateScoutStatus(`Tentativo ${attempt}/${MAX_ATTEMPTS}: cerco offerte…`);
+        updateScoutStatus(discoveryOnly
+          ? `Tentativo ${attempt}/${MAX_ATTEMPTS}: rilevo il prezzo di mercato…`
+          : `Tentativo ${attempt}/${MAX_ATTEMPTS}: cerco offerte…`);
         const searchButton = await waitFor(() => marketSearchButton(), 7000, 80, runId, "Il pulsante Cerca è assente o disabilitato: controlla i filtri della Web App");
         pressAction(searchButton);
         await recordActivity("search");
         await waitFor(() => marketResultsState(), 12000, 100, runId, "Il clic su Cerca non è stato accettato dalla Web App: verifica giocatore e prezzo massimo");
 
         const listings = await visibleMarketListings(runId);
-        await recordMarketSnapshot(playerName, listings);
+        const snapshot = await recordMarketSnapshot(playerName, listings);
+
+        if (discoveryOnly && snapshot) {
+          const pricing = FcMarket.suggestPricing(snapshot.reference, settings.minimumProfit, "recommended");
+          form.elements.buyPrice.value = formatCoins(pricing.maximumBuy);
+          form.elements.sellPrice.value = formatCoins(pricing.sellPrice);
+          currentTrade = {
+            id: crypto.randomUUID(),
+            player: playerName,
+            ...FcMarket.calculateTrade({ buyPrice: pricing.maximumBuy, sellPrice: pricing.sellPrice, quantity: 1 })
+          };
+          renderResult(currentTrade);
+          updateScoutStatus(`Prezzo rilevato da ${snapshot.count} offerte: riferimento ${formatCoins(snapshot.reference)}. Ho compilato acquisto e vendita consigliati; controllali e avvia il monitor quando vuoi.`, "success");
+          return;
+        }
+
         const best = FcMarket.chooseBestListing(listings, maximumBuy);
 
         if (best?.withinBudget) {
@@ -620,7 +639,9 @@
         await returnToSearchForm(runId);
       }
 
-      updateScoutStatus(`Nessuna offerta entro ${formatCoins(maximumBuy)} crediti dopo ${MAX_ATTEMPTS} tentativi.`, "warning");
+      updateScoutStatus(discoveryOnly
+        ? `Nessuna offerta visibile dopo ${MAX_ATTEMPTS} tentativi: prova ad ampliare i filtri della Web App.`
+        : `Nessuna offerta entro ${formatCoins(maximumBuy)} crediti dopo ${MAX_ATTEMPTS} tentativi.`, "warning");
     } catch (error) {
       if (runId === scoutRun) updateScoutStatus(error.message || "Ricerca non riuscita", "error");
     } finally {
@@ -637,22 +658,28 @@
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const data = new FormData(form);
-    currentTrade = {
-      id: crypto.randomUUID(),
-      player: String(data.get("player") || "").trim(),
-      ...FcMarket.calculateTrade({
-        buyPrice: data.get("buyPrice"),
-        sellPrice: data.get("sellPrice"),
-        quantity: data.get("quantity")
-      })
-    };
-    renderResult(currentTrade);
-    const playerName = currentTrade.player;
-    const maximumBuy = currentTrade.buyPrice;
-    const expectedSale = currentTrade.sellPrice;
-    if (!playerName || !maximumBuy) {
-      updateScoutStatus("Inserisci giocatore e prezzo massimo.", "error");
+    const playerName = String(data.get("player") || "").trim();
+    const maximumBuy = FcMarket.toCoins(data.get("buyPrice"));
+    const expectedSale = FcMarket.toCoins(data.get("sellPrice"));
+    if (!playerName) {
+      updateScoutStatus("Inserisci il nome del giocatore.", "error");
       return;
+    }
+    if (maximumBuy && !expectedSale) {
+      updateScoutStatus("Inserisci la vendita prevista oppure svuota anche l’acquisto per rilevare entrambi i prezzi.", "error");
+      return;
+    }
+    if (maximumBuy) {
+      currentTrade = {
+        id: crypto.randomUUID(),
+        player: playerName,
+        ...FcMarket.calculateTrade({ buyPrice: maximumBuy, sellPrice: expectedSale, quantity: data.get("quantity") })
+      };
+      renderResult(currentTrade);
+    } else {
+      currentTrade = null;
+      resultBox.hidden = true;
+      updateScoutStatus(`Rilevo il prezzo corrente di ${playerName} senza selezionare offerte…`);
     }
     runScout({ playerName, maximumBuy, expectedSale });
   });
