@@ -75,7 +75,7 @@
       </form>
 
       <div class="fc27-scout-status" data-scout-status role="status" aria-live="polite">
-        <i></i><span>Lascia vuoto il prezzo acquisto per rilevarlo. Ricerche ogni 2 secondi.</span>
+        <i></i><span>Lascia vuoto il prezzo acquisto per rilevarlo. Continua ogni 2 secondi finché trova o la fermi.</span>
       </div>
       <p class="fc27-risk">Si ferma prima di Compra ora. L’automazione può comunque violare le regole EA.</p>
 
@@ -175,7 +175,6 @@
   let playerIndex = [];
   let playerIndexState = "loading";
   const SEARCH_INTERVAL_MS = 2000;
-  const MAX_ATTEMPTS = 20;
 
   function setOpen(open) {
     shell.classList.toggle("fc27-is-open", open);
@@ -468,7 +467,7 @@
     const seconds = SEARCH_INTERVAL_MS / 1000;
     for (let remaining = seconds; remaining > 0; remaining -= 1) {
       if (runId !== scoutRun) throw new Error("Ricerca fermata");
-      updateScoutStatus(`Tentativo ${attempt}/${MAX_ATTEMPTS}: nessuna offerta entro budget. Nuova ricerca tra ${remaining}s.`, "warning");
+      updateScoutStatus(`Tentativo ${attempt}: nessuna offerta entro budget. Nuova ricerca tra ${remaining}s.`, "warning");
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
@@ -632,10 +631,10 @@
       }, 7000, 80, runId, "Campo Prezzo Compra ora massimo non trovato");
       setNativeValue(priceInputs.at(-1), discoveryOnly ? "" : maximumBuy);
 
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      for (let attempt = 1; runId === scoutRun; attempt += 1) {
         updateScoutStatus(discoveryOnly
-          ? `Tentativo ${attempt}/${MAX_ATTEMPTS}: rilevo il prezzo di mercato…`
-          : `Tentativo ${attempt}/${MAX_ATTEMPTS}: cerco offerte…`);
+          ? `Tentativo ${attempt}: rilevo il prezzo di mercato…`
+          : `Tentativo ${attempt}: cerco offerte…`);
         const searchButton = await waitFor(() => marketSearchButton(), 7000, 80, runId, "Il pulsante Cerca è assente o disabilitato: controlla i filtri della Web App");
         pressAction(searchButton);
         await recordActivity("search");
@@ -677,14 +676,9 @@
           return;
         }
 
-        if (attempt === MAX_ATTEMPTS) break;
         await waitBetweenSearches(runId, attempt);
         await returnToSearchForm(runId);
       }
-
-      updateScoutStatus(discoveryOnly
-        ? `Nessuna offerta visibile dopo ${MAX_ATTEMPTS} tentativi: prova ad ampliare i filtri della Web App.`
-        : `Nessuna offerta entro ${formatCoins(maximumBuy)} crediti dopo ${MAX_ATTEMPTS} tentativi.`, "warning");
     } catch (error) {
       if (runId === scoutRun) updateScoutStatus(error.message || "Ricerca non riuscita", "error");
     } finally {
