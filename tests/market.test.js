@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { calculateTrade, rateTrade, toCoins, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, summarizePrices, comparePriceSnapshots, normalizeSearchText } = require("../src/market.js");
+const { calculateTrade, rateTrade, toCoins, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, summarizePrices, latestObservedPrice, comparePriceSnapshots, normalizeSearchText } = require("../src/market.js");
 
 test("normalizza i valori delle monete", () => {
   assert.equal(toCoins("12.500 coins"), 12500);
@@ -71,10 +71,26 @@ test("riassume i prezzi osservati usando la mediana", () => {
   assert.deepEqual(summarizePrices([1500, "1.000", 2000, 1200]), {
     count: 4,
     minimum: 1000,
+    reference: 1200,
     median: 1350,
     maximum: 2000
   });
   assert.equal(summarizePrices([0, "n/a"]), null);
+});
+
+test("usa soltanto un prezzo EA recente dello stesso giocatore", () => {
+  const now = Date.UTC(2026, 8, 20, 12);
+  const snapshots = [
+    { player: "Iago Aspas", timestamp: now - 1000, minimum: 800, reference: 850, count: 6 },
+    { player: "Iago Aspas", timestamp: now - 8 * 60 * 60 * 1000, minimum: 700, reference: 750, count: 5 }
+  ];
+  assert.deepEqual(latestObservedPrice(snapshots, "iago  aspas", now), {
+    price: 850,
+    updatedAt: now - 1000,
+    sampleSize: 6
+  });
+  assert.equal(latestObservedPrice(snapshots, "Lautaro Martínez", now), null);
+  assert.equal(latestObservedPrice(snapshots.slice(1), "Iago Aspas", now), null);
 });
 
 test("confronta due rilevazioni del mercato", () => {

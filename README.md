@@ -5,8 +5,8 @@ Estensione Chrome locale per valutare operazioni sul mercato di EA SPORTS FC Ult
 ## Funzioni disponibili
 
 - pannello laterale integrato nella Web App;
-- monitor assistito: apre Trasferimenti, seleziona il giocatore e ripete la ricerca ogni 15 secondi, fino a 20 tentativi;
-- autocomplete locale basato su `data/players.json`, con nome, overall e ultimo prezzo FUTBIN disponibile;
+- monitor assistito: apre Trasferimenti, seleziona il giocatore e ripete la ricerca ogni 5 secondi, fino a 20 tentativi;
+- autocomplete locale basato su `data/players.json`, con nome, overall e prezzo EA osservato di recente quando disponibile;
 - 544 giocatori base Serie A (Oro e Argento) raccolti dal filtro pubblico FUTBIN della lega;
 - calcolo della tassa EA del 5%, utile netto, utile totale e ROI;
 - prezzo massimo suggerito dal prezzo locale, con tassa e utile minimo inclusi;
@@ -36,7 +36,7 @@ Se il pannello mostra `0 carte FUTBIN`, verifica che la versione dell’estensio
 1. Apri **27 MARKET** e inserisci il nome del giocatore come appare nella Web App.
 2. Imposta il prezzo massimo *Compra ora* e la rivendita prevista.
 3. Premi **Analizza e monitora**.
-4. Il monitor apre il mercato e ripete la ricerca ogni 15 secondi, per un massimo di 20 tentativi.
+4. Il monitor apre il mercato e ripete la ricerca ogni 5 secondi, per un massimo di 20 tentativi.
 5. Quando trova una carta entro il budget, la seleziona e la evidenzia.
 6. Controlla carta e prezzo, quindi decidi manualmente se acquistare.
 
@@ -50,7 +50,9 @@ Quando una pagina di risultati contiene offerte, l’estensione salva un riepilo
 
 ### Database giocatori
 
-`data/players.json` contiene record provenienti dalle pagine pubbliche FUTBIN, con origine, data e copertura dichiarate. Include il catalogo base Serie A disponibile nel filtro lega 31 al momento della raccolta; il catalogo generale resta incrementale e non viene dichiarato completo. I prezzi possono diventare rapidamente obsoleti e `0` significa “non disponibile”.
+`data/players.json` contiene identità e metadati provenienti dalle pagine pubbliche FUTBIN, con origine, data e copertura dichiarate. Include il catalogo base Serie A disponibile nel filtro lega 31 al momento della raccolta; il catalogo generale resta incrementale e non viene dichiarato completo.
+
+I prezzi statici FUTBIN sono disattivati (`price: 0`) perché la pagina non offre un’API pubblica documentata e l’accesso HTTP automatizzato viene bloccato. Durante l’uso, l’estensione salva invece le offerte *Compra ora* realmente visibili nella Web App EA. Il prezzo locale di riferimento è la mediana delle tre offerte più economiche visibili, scade dopo 6 ore ed è memorizzato soltanto in `chrome.storage.local`.
 
 ## Sviluppo
 

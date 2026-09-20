@@ -100,7 +100,30 @@
     const median = prices.length % 2
       ? prices[middle]
       : Math.round((prices[middle - 1] + prices[middle]) / 2);
-    return { count: prices.length, minimum: prices[0], median, maximum: prices.at(-1) };
+    const floorSample = prices.slice(0, Math.min(3, prices.length));
+    const floorMiddle = Math.floor(floorSample.length / 2);
+    const reference = floorSample.length % 2
+      ? floorSample[floorMiddle]
+      : Math.round((floorSample[floorMiddle - 1] + floorSample[floorMiddle]) / 2);
+    return { count: prices.length, minimum: prices[0], reference, median, maximum: prices.at(-1) };
+  }
+
+  function latestObservedPrice(snapshots, playerName, now = Date.now(), maxAge = 6 * 60 * 60 * 1000) {
+    const normalizedPlayer = normalizeSearchText(playerName);
+    if (!normalizedPlayer || !Array.isArray(snapshots)) return null;
+    const snapshot = snapshots.find((entry) =>
+      normalizeSearchText(entry?.player) === normalizedPlayer
+      && Number.isFinite(entry?.timestamp)
+      && now - entry.timestamp >= 0
+      && now - entry.timestamp <= maxAge
+      && toCoins(entry.reference || entry.minimum) > 0
+    );
+    if (!snapshot) return null;
+    return {
+      price: toCoins(snapshot.reference || snapshot.minimum),
+      updatedAt: snapshot.timestamp,
+      sampleSize: toCoins(snapshot.count)
+    };
   }
 
   function comparePriceSnapshots(current, previous) {
@@ -125,7 +148,7 @@
       .toLocaleLowerCase();
   }
 
-  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, summarizePrices, comparePriceSnapshots, normalizeSearchText };
+  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, summarizePrices, latestObservedPrice, comparePriceSnapshots, normalizeSearchText };
   root.FcMarket = api;
 
   if (typeof module !== "undefined" && module.exports) {

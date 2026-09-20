@@ -15,6 +15,8 @@ Il progetto usa Manifest V3, un content script in ambiente isolato e `chrome.sto
 
 Il database pubblico FUTBIN FC27 osservato il 20 settembre 2026 contiene 757 pagine. L’accesso HTTP automatizzato restituisce `403`, mentre le pagine pubbliche funzionano normalmente nel browser. Per non aggirare protezioni né eseguire centinaia di richieste, `data/players.json` dichiara esplicitamente la propria copertura incrementale. L’autocomplete continua a funzionare anche con un indice parziale e accetta sempre testo libero.
 
+FUTBIN presenta i prezzi come dati live nella propria lista mercato, ma non pubblica un’API documentata utilizzabile dall’estensione. I valori precedentemente estratti dalle pagine giocatori mescolavano carte e colonne di piattaforme differenti. Dalla versione 0.7.0 il file JSON conserva soltanto identità e metadati: il prezzo runtime deriva dalle offerte visibili della Web App EA, usa la mediana delle tre più economiche per ridurre gli outlier e scade dopo 6 ore.
+
 ## Vincoli
 
 EA vieta espressamente bot, auto-buyer e automazioni del mercato trasferimenti. Per questo la roadmap esclude click automatici, aggiramento di CAPTCHA, intercettazione di sessioni, cookie o credenziali.

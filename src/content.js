@@ -58,7 +58,7 @@
           <strong>5%</strong>
         </div>
         <div class="fc27-quick-actions">
-          <button type="button" data-auto-price>Usa prezzo locale</button>
+          <button type="button" data-auto-price>Usa prezzo EA rilevato</button>
           <button type="button" data-filter-save>Salva filtro</button>
         </div>
         <button class="fc27-primary" type="submit" data-scout-start>Analizza e monitora <span>→</span></button>
@@ -66,7 +66,7 @@
       </form>
 
       <div class="fc27-scout-status" data-scout-status role="status" aria-live="polite">
-        <i></i><span>Pronto. Una ricerca ogni 15 secondi, massimo 20 tentativi.</span>
+        <i></i><span>Pronto. Una ricerca ogni 5 secondi, massimo 20 tentativi.</span>
       </div>
       <p class="fc27-risk">Si ferma prima di Compra ora. L’automazione può comunque violare le regole EA.</p>
 
@@ -156,7 +156,7 @@
   let scoutRun = 0;
   let playerIndex = [];
   let playerIndexState = "loading";
-  const SEARCH_INTERVAL_MS = 15000;
+  const SEARCH_INTERVAL_MS = 5000;
   const MAX_ATTEMPTS = 20;
 
   function setOpen(open) {
@@ -234,6 +234,17 @@
     return Array.isArray(settings.marketHistory) ? settings.marketHistory : [];
   }
 
+  function observedPrice(playerName) {
+    return FcMarket.latestObservedPrice(marketHistory(), playerName);
+  }
+
+  function observationAge(timestamp) {
+    const minutes = Math.max(0, Math.round((Date.now() - timestamp) / 60000));
+    if (minutes < 1) return "adesso";
+    if (minutes < 60) return `${minutes} min fa`;
+    return `${Math.floor(minutes / 60)} h fa`;
+  }
+
   function renderMarketInsights(playerName = form.elements.player.value.trim()) {
     const allSnapshots = marketHistory();
     const normalizedPlayer = FcMarket.normalizeSearchText(playerName);
@@ -266,10 +277,12 @@
   async function recordMarketSnapshot(player, listings) {
     const priceSummary = FcMarket.summarizePrices(listings.map((listing) => listing.buyNow));
     if (!priceSummary) return;
-    const snapshot = { id: crypto.randomUUID(), player, timestamp: Date.now(), ...priceSummary };
+    const snapshot = { id: crypto.randomUUID(), player, timestamp: Date.now(), source: "ea-web-app-visible-results", ...priceSummary };
     settings.marketHistory = [snapshot, ...marketHistory()].slice(0, 120);
     await storage.set({ marketHistory: settings.marketHistory });
     renderMarketInsights(player);
+    const indexedPlayer = playerIndex.find((entry) => FcMarket.normalizeSearchText(entry.name) === FcMarket.normalizeSearchText(player));
+    updatePlayerMeta(indexedPlayer);
   }
 
   async function recordActivity(kind) {
@@ -461,9 +474,12 @@
   function updatePlayerMeta(player) {
     const meta = shell.querySelector("[data-player-meta]");
     if (player) {
-      meta.textContent = `OVR ${player.overall} · ${player.position} · FUTBIN ${player.price ? formatCoins(player.price) : "prezzo n/d"}`;
+      const observed = observedPrice(player.name);
+      meta.textContent = observed
+        ? `OVR ${player.overall} · ${player.position} · EA ${formatCoins(observed.price)} · ${observationAge(observed.updatedAt)}`
+        : `OVR ${player.overall} · ${player.position} · prezzo non ancora rilevato`;
     } else if (playerIndexState === "ready") {
-      meta.textContent = `${playerIndex.length} carte FUTBIN nel file locale`;
+      meta.textContent = `${playerIndex.length} carte nel catalogo locale · prezzi rilevati dalla Web App`;
     } else if (playerIndexState === "error") {
       meta.textContent = "Indice giocatori non disponibile; ricarica l’estensione.";
     }
@@ -479,12 +495,13 @@
 
     list.replaceChildren();
     matches.forEach((player) => {
+      const observed = observedPrice(player.name);
       const button = document.createElement("button");
       button.type = "button";
       button.setAttribute("role", "option");
       button.innerHTML = `<strong></strong><span></span>`;
       button.querySelector("strong").textContent = player.name;
-      button.querySelector("span").textContent = `OVR ${player.overall} · ${player.position} · ${player.price ? formatCoins(player.price) : "n/d"}`;
+      button.querySelector("span").textContent = `OVR ${player.overall} · ${player.position} · ${observed ? `EA ${formatCoins(observed.price)}` : "prezzo da rilevare"}`;
       button.addEventListener("mousedown", (event) => event.preventDefault());
       button.addEventListener("click", () => {
         input.value = player.name;
@@ -665,14 +682,15 @@
   shell.querySelector("[data-auto-price]").addEventListener("click", () => {
     const name = form.elements.player.value.trim().toLocaleLowerCase();
     const player = playerIndex.find((entry) => entry.name.toLocaleLowerCase() === name);
-    if (!player?.price) {
-      updateScoutStatus("Seleziona una carta con prezzo locale disponibile.", "warning");
+    const observed = observedPrice(player?.name || form.elements.player.value.trim());
+    if (!observed) {
+      updateScoutStatus("Nessun prezzo EA recente per questo giocatore. Inserisci un limite manuale ed esegui una ricerca per registrarlo.", "warning");
       return;
     }
-    const pricing = FcMarket.suggestPricing(player.price, settings.minimumProfit, "recommended");
+    const pricing = FcMarket.suggestPricing(observed.price, settings.minimumProfit, "recommended");
     form.elements.buyPrice.value = formatCoins(pricing.maximumBuy);
     form.elements.sellPrice.value = formatCoins(pricing.sellPrice);
-    updateScoutStatus(`Prezzi suggeriti da FUTBIN locale: compra fino a ${formatCoins(pricing.maximumBuy)}, vendita ${formatCoins(pricing.sellPrice)}. Verifica sempre sul mercato.`, "success");
+    updateScoutStatus(`Prezzo EA osservato ${observationAge(observed.updatedAt)} su ${observed.sampleSize} offerte: compra fino a ${formatCoins(pricing.maximumBuy)}, vendita ${formatCoins(pricing.sellPrice)}.`, "success");
   });
 
   shell.querySelector("[data-filter-save]").addEventListener("click", async () => {
