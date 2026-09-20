@@ -21,3 +21,16 @@ test("ogni carta ha nome, overall, prezzo e URL", () => {
     assert.match(player.url, /^https:\/\/www\.futbin\.com\/27\/player\//);
   });
 });
+
+test("il catalogo locale contiene la carta usata nel flusso di prova", () => {
+  const iago = database.players.find((player) => player.name === "Iago Aspas");
+  assert.ok(iago);
+  assert.equal(iago.overall, 81);
+  assert.ok(iago.price > 0);
+});
+
+test("il manifest espone il catalogo JSON alle pagine EA", () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.json"), "utf8"));
+  const resources = manifest.web_accessible_resources.flatMap((entry) => entry.resources);
+  assert.ok(resources.includes("data/players.json"));
+});

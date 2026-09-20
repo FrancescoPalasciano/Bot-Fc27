@@ -31,9 +31,9 @@
       <form class="fc27-form" data-trade-form>
         <label class="fc27-field fc27-field-wide">
           <span>Giocatore</span>
-          <input name="player" maxlength="60" placeholder="Es. Iago Aspas" autocomplete="off" list="fc27-player-options" required>
+          <input name="player" maxlength="60" placeholder="Es. Iago Aspas" autocomplete="off" aria-autocomplete="list" aria-controls="fc27-player-suggestions" aria-expanded="false" required>
           <small class="fc27-player-meta" data-player-meta>Caricamento indice giocatori…</small>
-          <datalist id="fc27-player-options" data-player-options></datalist>
+          <div class="fc27-player-suggestions" id="fc27-player-suggestions" data-player-suggestions role="listbox" hidden></div>
         </label>
         <label class="fc27-field">
           <span>Prezzo acquisto</span>
@@ -110,6 +110,7 @@
   let settings = { ...defaults };
   let scoutRun = 0;
   let playerIndex = [];
+  let playerIndexState = "loading";
   const SEARCH_INTERVAL_MS = 15000;
   const MAX_ATTEMPTS = 20;
 
@@ -175,14 +176,14 @@
     scoutStatus.querySelector("span").textContent = message;
   }
 
-  function waitFor(getValue, timeout = 5000, interval = 80, runId = scoutRun) {
+  function waitFor(getValue, timeout = 5000, interval = 80, runId = scoutRun, errorMessage = "Elemento della Web App non trovato") {
     return new Promise((resolve, reject) => {
       const started = Date.now();
       const check = () => {
         if (runId !== scoutRun) return reject(new Error("Ricerca fermata"));
         const value = getValue();
         if (value) return resolve(value);
-        if (Date.now() - started >= timeout) return reject(new Error("Elemento della Web App non trovato"));
+        if (Date.now() - started >= timeout) return reject(new Error(errorMessage));
         setTimeout(check, interval);
       };
       check();
@@ -198,7 +199,33 @@
   }
 
   function buttonByText(text) {
-    return [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === text);
+    const wanted = text.toLocaleLowerCase();
+    return [...document.querySelectorAll("button")].find((button) => button.textContent.trim().toLocaleLowerCase() === wanted);
+  }
+
+  function visibleText(node) {
+    return node?.textContent?.replace(/\s+/g, " ").trim().toLocaleLowerCase() || "";
+  }
+
+  function clickAction(node) {
+    const target = node?.closest("button, [role='button'], .tile, .ut-tile, .rowContent") || node;
+    if (!target) return false;
+    target.scrollIntoView({ block: "center" });
+    target.click();
+    return true;
+  }
+
+  function transferNavigationButton() {
+    return document.querySelector("button.ut-tab-bar-item.icon-transfer, button[class*='icon-transfer']")
+      || [...document.querySelectorAll("button")].find((button) => /^(transfers|trasferimenti)$/i.test(button.textContent.trim()));
+  }
+
+  function marketSearchEntry() {
+    const labels = [...document.querySelectorAll("h1, h2, h3, button, [role='button']")];
+    return labels.find((node) => {
+      const text = visibleText(node);
+      return text === "search the transfer market" || text === "cerca nel mercato trasferimenti";
+    });
   }
 
   async function waitBetweenSearches(runId, attempt) {
@@ -210,17 +237,64 @@
     }
   }
 
-  function findHeading(text) {
-    return [...document.querySelectorAll("h1")].find((node) => node.textContent.trim() === text);
+  function findHeading(...texts) {
+    const wanted = texts.map((text) => text.toLocaleLowerCase());
+    return [...document.querySelectorAll("h1, h2")].find((node) => wanted.includes(visibleText(node)));
   }
 
   async function returnToSearchForm(runId) {
-    const heading = await waitFor(() => findHeading("Search Results"), 5000, 80, runId);
+    const heading = await waitFor(() => findHeading("Search Results", "Risultati di ricerca"), 7000, 80, runId, "La pagina dei risultati non è più riconoscibile");
     const header = heading.closest("header, .ut-navigation-container-view--header") || heading.parentElement;
     const backButton = header?.querySelector("button") || document.querySelector("button.ut-navigation-button-control");
     if (!backButton) throw new Error("Pulsante per ripetere la ricerca non trovato");
-    backButton.click();
-    await waitFor(() => document.querySelector('input[placeholder="Type Player Name"]'), 5000, 80, runId);
+    clickAction(backButton);
+    await waitFor(() => playerSearchInput(), 7000, 80, runId, "Non riesco a tornare ai filtri di ricerca");
+  }
+
+  function playerSearchInput() {
+    return document.querySelector('input[placeholder="Type Player Name"], input[placeholder="Digita nome giocatore"]')
+      || [...document.querySelectorAll("input[type='text'], input:not([type])")].find((input) => /player|giocatore/i.test(input.placeholder || ""));
+  }
+
+  function updatePlayerMeta(player) {
+    const meta = shell.querySelector("[data-player-meta]");
+    if (player) {
+      meta.textContent = `OVR ${player.overall} · ${player.position} · FUTBIN ${player.price ? formatCoins(player.price) : "prezzo n/d"}`;
+    } else if (playerIndexState === "ready") {
+      meta.textContent = `${playerIndex.length} carte FUTBIN nel file locale`;
+    } else if (playerIndexState === "error") {
+      meta.textContent = "Indice giocatori non disponibile; ricarica l’estensione.";
+    }
+  }
+
+  function renderPlayerSuggestions() {
+    const input = form.elements.player;
+    const list = shell.querySelector("[data-player-suggestions]");
+    const query = input.value.trim().toLocaleLowerCase();
+    const matches = query.length < 2 ? [] : playerIndex
+      .filter((player) => `${player.name} ${player.fullName || ""}`.toLocaleLowerCase().includes(query))
+      .slice(0, 8);
+
+    list.replaceChildren();
+    matches.forEach((player) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("role", "option");
+      button.innerHTML = `<strong></strong><span></span>`;
+      button.querySelector("strong").textContent = player.name;
+      button.querySelector("span").textContent = `OVR ${player.overall} · ${player.position} · ${player.price ? formatCoins(player.price) : "n/d"}`;
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => {
+        input.value = player.name;
+        list.hidden = true;
+        input.setAttribute("aria-expanded", "false");
+        updatePlayerMeta(player);
+        input.focus();
+      });
+      list.appendChild(button);
+    });
+    list.hidden = matches.length === 0;
+    input.setAttribute("aria-expanded", String(matches.length > 0));
   }
 
   async function loadPlayerIndex() {
@@ -230,18 +304,13 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       playerIndex = Array.isArray(data.players) ? data.players : [];
-      const options = shell.querySelector("[data-player-options]");
-      const fragment = document.createDocumentFragment();
-      playerIndex.forEach((player) => {
-        const option = document.createElement("option");
-        option.value = player.name;
-        option.label = `${player.name} · OVR ${player.overall} · ${player.price ? formatCoins(player.price) : "prezzo n/d"}`;
-        fragment.appendChild(option);
-      });
-      options.replaceChildren(fragment);
-      meta.textContent = `${playerIndex.length} carte FUTBIN nel file locale`;
+      if (!playerIndex.length) throw new Error("Il catalogo non contiene giocatori");
+      playerIndexState = "ready";
+      updatePlayerMeta();
     } catch (error) {
-      meta.textContent = "Indice giocatori non disponibile; puoi comunque scrivere il nome.";
+      playerIndexState = "error";
+      console.warn("FC27 Market Companion: impossibile caricare data/players.json", error);
+      updatePlayerMeta();
     }
   }
 
@@ -252,36 +321,38 @@
     document.querySelectorAll(".fc27-scout-match").forEach((node) => node.classList.remove("fc27-scout-match"));
 
     try {
-      updateScoutStatus("Apro Trasferimenti…");
-      const transferButton = await waitFor(() => document.querySelector("button.ut-tab-bar-item.icon-transfer"), 4000, 80, runId);
-      transferButton.click();
+      if (!playerSearchInput()) {
+        updateScoutStatus("Apro Trasferimenti…");
+        const transferButton = await waitFor(() => transferNavigationButton(), 7000, 80, runId, "Menu Trasferimenti non trovato: apri la Web App completa e riprova");
+        clickAction(transferButton);
 
-      updateScoutStatus("Apro la ricerca mercato…");
-      const searchMarket = await waitFor(() => [...document.querySelectorAll("h1")].find((node) => node.textContent.trim() === "Search the Transfer Market"), 5000, 80, runId);
-      searchMarket.click();
+        updateScoutStatus("Apro la ricerca mercato…");
+        const searchMarket = await waitFor(() => marketSearchEntry() || playerSearchInput(), 10000, 100, runId, "Scheda ‘Cerca nel mercato’ non trovata dopo l’apertura di Trasferimenti");
+        if (searchMarket.tagName !== "INPUT") clickAction(searchMarket);
+      }
 
       updateScoutStatus(`Cerco ${playerName}…`);
-      const playerInput = await waitFor(() => document.querySelector('input[placeholder="Type Player Name"]'), 5000, 80, runId);
+      const playerInput = await waitFor(() => playerSearchInput(), 10000, 100, runId, "Campo nome giocatore non trovato nella ricerca mercato");
       setNativeValue(playerInput, playerName);
       playerInput.focus();
 
       const suggestion = await waitFor(() => {
         const candidates = [...document.querySelectorAll(".playerResultsList button")];
         return candidates.find((button) => button.textContent.toLocaleLowerCase().includes(playerName.toLocaleLowerCase())) || candidates[0];
-      }, 5000, 80, runId);
-      suggestion.click();
+      }, 7000, 80, runId, `La Web App non propone ${playerName}: seleziona una carta valida dall’autocompletamento`);
+      clickAction(suggestion);
 
       const priceInputs = await waitFor(() => {
         const inputs = [...document.querySelectorAll("input.ut-number-input-control")];
         return inputs.length >= 6 ? inputs : null;
-      }, 4000, 80, runId);
+      }, 7000, 80, runId, "Campo Prezzo Compra ora massimo non trovato");
       setNativeValue(priceInputs.at(-1), maximumBuy);
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
         updateScoutStatus(`Tentativo ${attempt}/${MAX_ATTEMPTS}: cerco offerte…`);
-        const searchButton = await waitFor(() => buttonByText("Search"), 3000, 80, runId);
-        searchButton.click();
-        await waitFor(() => findHeading("Search Results"), 7000, 100, runId);
+        const searchButton = await waitFor(() => buttonByText("Search") || buttonByText("Cerca"), 5000, 80, runId, "Pulsante Cerca non trovato");
+        clickAction(searchButton);
+        await waitFor(() => findHeading("Search Results", "Risultati di ricerca"), 10000, 100, runId, "La ricerca non ha aperto la pagina dei risultati");
 
         const rows = [...document.querySelectorAll(".paginated-item-list .listFUTItem")];
         const listings = rows.map((element) => ({ element, ...FcMarket.parseListingText(element.innerText) }));
@@ -345,12 +416,25 @@
     runScout({ playerName, maximumBuy, expectedSale });
   });
 
-  form.elements.player.addEventListener("change", () => {
+  form.elements.player.addEventListener("input", () => {
     const value = form.elements.player.value.trim().toLocaleLowerCase();
     const player = playerIndex.find((entry) => entry.name.toLocaleLowerCase() === value);
-    shell.querySelector("[data-player-meta]").textContent = player
-      ? `OVR ${player.overall} · ${player.position} · FUTBIN ${player.price ? formatCoins(player.price) : "prezzo n/d"}`
-      : `${playerIndex.length} carte FUTBIN nel file locale`;
+    updatePlayerMeta(player);
+    renderPlayerSuggestions();
+  });
+
+  form.elements.player.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      shell.querySelector("[data-player-suggestions]").hidden = true;
+      form.elements.player.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  form.elements.player.addEventListener("blur", () => {
+    setTimeout(() => {
+      shell.querySelector("[data-player-suggestions]").hidden = true;
+      form.elements.player.setAttribute("aria-expanded", "false");
+    }, 120);
   });
 
   shell.querySelector("[data-scout-stop]").addEventListener("click", () => {
