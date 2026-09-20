@@ -13,6 +13,8 @@ Ricerca effettuata il 20 settembre 2026.
 
 Il progetto usa Manifest V3, un content script in ambiente isolato e `chrome.storage.local`. La prima versione è volutamente un assistente: calcola tassa, profitto e ROI, salva una watchlist e non esegue transazioni.
 
+Il database pubblico FUTBIN FC27 osservato il 20 settembre 2026 contiene 757 pagine. L’accesso HTTP automatizzato restituisce `403`, mentre le pagine pubbliche funzionano normalmente nel browser. Per non aggirare protezioni né eseguire centinaia di richieste, `data/players.json` dichiara esplicitamente la propria copertura incrementale. L’autocomplete continua a funzionare anche con un indice parziale e accetta sempre testo libero.
+
 ## Vincoli
 
 EA vieta espressamente bot, auto-buyer e automazioni del mercato trasferimenti. Per questo la roadmap esclude click automatici, aggiramento di CAPTCHA, intercettazione di sessioni, cookie o credenziali.

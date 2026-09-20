@@ -28,40 +28,12 @@
         Lo Scout si ferma sempre prima dell’acquisto.
       </div>
 
-      <section class="fc27-scout">
-        <div class="fc27-section-title fc27-section-title--compact">
-          <div>
-            <p class="fc27-eyebrow">RICERCA ASSISTITA</p>
-            <h2>Scout mercato</h2>
-          </div>
-          <span>1 ricerca</span>
-        </div>
-        <form class="fc27-scout-form" data-scout-form>
-          <label class="fc27-field fc27-field-wide">
-            <span>Nome esatto del giocatore</span>
-            <input name="scoutPlayer" maxlength="60" placeholder="Es. Iago Aspas" autocomplete="off" required>
-          </label>
-          <label class="fc27-field">
-            <span>Compra ora massimo</span>
-            <input name="scoutMax" inputmode="numeric" placeholder="700" required>
-          </label>
-          <label class="fc27-field">
-            <span>Rivendita prevista</span>
-            <input name="scoutSell" inputmode="numeric" placeholder="1.000">
-          </label>
-          <button class="fc27-primary" type="submit" data-scout-start>Trova e apri l’offerta <span>↗</span></button>
-          <button class="fc27-secondary fc27-scout-stop" type="button" data-scout-stop hidden>Ferma ricerca</button>
-        </form>
-        <div class="fc27-scout-status" data-scout-status role="status" aria-live="polite">
-          <i></i><span>Pronto. Nessuna azione verrà confermata.</span>
-        </div>
-        <p class="fc27-risk">L’automazione può violare le regole EA anche senza acquisto automatico.</p>
-      </section>
-
       <form class="fc27-form" data-trade-form>
         <label class="fc27-field fc27-field-wide">
           <span>Giocatore</span>
-          <input name="player" maxlength="60" placeholder="Es. Centrocampista 86" autocomplete="off">
+          <input name="player" maxlength="60" placeholder="Es. Iago Aspas" autocomplete="off" list="fc27-player-options" required>
+          <small class="fc27-player-meta" data-player-meta>Caricamento indice giocatori…</small>
+          <datalist id="fc27-player-options" data-player-options></datalist>
         </label>
         <label class="fc27-field">
           <span>Prezzo acquisto</span>
@@ -79,8 +51,14 @@
           <span>Imposta EA</span>
           <strong>5%</strong>
         </div>
-        <button class="fc27-primary" type="submit">Analizza operazione <span>→</span></button>
+        <button class="fc27-primary" type="submit" data-scout-start>Analizza e monitora <span>→</span></button>
+        <button class="fc27-secondary fc27-scout-stop" type="button" data-scout-stop hidden>Ferma monitor</button>
       </form>
+
+      <div class="fc27-scout-status" data-scout-status role="status" aria-live="polite">
+        <i></i><span>Pronto. Una ricerca ogni 15 secondi, massimo 20 tentativi.</span>
+      </div>
+      <p class="fc27-risk">Si ferma prima di Compra ora. L’automazione può comunque violare le regole EA.</p>
 
       <section class="fc27-result" data-result hidden aria-live="polite">
         <div class="fc27-score-row">
@@ -126,12 +104,14 @@
   const launcher = shell.querySelector(".fc27-launcher");
   const panel = shell.querySelector(".fc27-panel");
   const form = shell.querySelector("[data-trade-form]");
-  const scoutForm = shell.querySelector("[data-scout-form]");
   const scoutStatus = shell.querySelector("[data-scout-status]");
   const resultBox = shell.querySelector("[data-result]");
   let currentTrade = null;
   let settings = { ...defaults };
   let scoutRun = 0;
+  let playerIndex = [];
+  const SEARCH_INTERVAL_MS = 15000;
+  const MAX_ATTEMPTS = 20;
 
   function setOpen(open) {
     shell.classList.toggle("fc27-is-open", open);
@@ -221,6 +201,50 @@
     return [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === text);
   }
 
+  async function waitBetweenSearches(runId, attempt) {
+    const seconds = SEARCH_INTERVAL_MS / 1000;
+    for (let remaining = seconds; remaining > 0; remaining -= 1) {
+      if (runId !== scoutRun) throw new Error("Ricerca fermata");
+      updateScoutStatus(`Tentativo ${attempt}/${MAX_ATTEMPTS}: nessuna offerta entro budget. Nuova ricerca tra ${remaining}s.`, "warning");
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  function findHeading(text) {
+    return [...document.querySelectorAll("h1")].find((node) => node.textContent.trim() === text);
+  }
+
+  async function returnToSearchForm(runId) {
+    const heading = await waitFor(() => findHeading("Search Results"), 5000, 80, runId);
+    const header = heading.closest("header, .ut-navigation-container-view--header") || heading.parentElement;
+    const backButton = header?.querySelector("button") || document.querySelector("button.ut-navigation-button-control");
+    if (!backButton) throw new Error("Pulsante per ripetere la ricerca non trovato");
+    backButton.click();
+    await waitFor(() => document.querySelector('input[placeholder="Type Player Name"]'), 5000, 80, runId);
+  }
+
+  async function loadPlayerIndex() {
+    const meta = shell.querySelector("[data-player-meta]");
+    try {
+      const response = await fetch(chrome.runtime.getURL("data/players.json"));
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      playerIndex = Array.isArray(data.players) ? data.players : [];
+      const options = shell.querySelector("[data-player-options]");
+      const fragment = document.createDocumentFragment();
+      playerIndex.forEach((player) => {
+        const option = document.createElement("option");
+        option.value = player.name;
+        option.label = `${player.name} · OVR ${player.overall} · ${player.price ? formatCoins(player.price) : "prezzo n/d"}`;
+        fragment.appendChild(option);
+      });
+      options.replaceChildren(fragment);
+      meta.textContent = `${playerIndex.length} carte FUTBIN nel file locale`;
+    } catch (error) {
+      meta.textContent = "Indice giocatori non disponibile; puoi comunque scrivere il nome.";
+    }
+  }
+
   async function runScout({ playerName, maximumBuy, expectedSale }) {
     const runId = ++scoutRun;
     shell.querySelector("[data-scout-start]").disabled = true;
@@ -253,35 +277,38 @@
       }, 4000, 80, runId);
       setNativeValue(priceInputs.at(-1), maximumBuy);
 
-      updateScoutStatus("Confronto le offerte visibili…");
-      const searchButton = await waitFor(() => buttonByText("Search"), 3000, 80, runId);
-      searchButton.click();
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+        updateScoutStatus(`Tentativo ${attempt}/${MAX_ATTEMPTS}: cerco offerte…`);
+        const searchButton = await waitFor(() => buttonByText("Search"), 3000, 80, runId);
+        searchButton.click();
+        await waitFor(() => findHeading("Search Results"), 7000, 100, runId);
 
-      const rows = await waitFor(() => {
-        const items = [...document.querySelectorAll(".paginated-item-list .listFUTItem")];
-        return items.length ? items : null;
-      }, 7000, 100, runId);
+        const rows = [...document.querySelectorAll(".paginated-item-list .listFUTItem")];
+        const listings = rows.map((element) => ({ element, ...FcMarket.parseListingText(element.innerText) }));
+        const best = FcMarket.chooseBestListing(listings, maximumBuy);
 
-      const listings = rows.map((element) => ({ element, ...FcMarket.parseListingText(element.innerText) }));
-      const best = FcMarket.chooseBestListing(listings, maximumBuy);
-      if (!best) throw new Error("Nessuna offerta con prezzo Compra ora leggibile");
+        if (best?.withinBudget) {
+          best.element.classList.add("fc27-scout-match");
+          (best.element.querySelector(".rowContent") || best.element).click();
+          best.element.scrollIntoView({ behavior: "smooth", block: "center" });
 
-      best.element.classList.add("fc27-scout-match");
-      (best.element.querySelector(".rowContent") || best.element).click();
-      best.element.scrollIntoView({ behavior: "smooth", block: "center" });
+          currentTrade = {
+            id: crypto.randomUUID(),
+            player: playerName,
+            ...FcMarket.calculateTrade({ buyPrice: best.buyNow, sellPrice: expectedSale, quantity: 1 })
+          };
+          renderResult(currentTrade);
+          updateScoutStatus(`${playerName} trovato a ${formatCoins(best.buyNow)} crediti. Verifica e acquista manualmente.`, "success");
+          setTimeout(() => setOpen(false), 900);
+          return;
+        }
 
-      if (expectedSale > 0) {
-        currentTrade = {
-          id: crypto.randomUUID(),
-          player: playerName,
-          ...FcMarket.calculateTrade({ buyPrice: best.buyNow, sellPrice: expectedSale, quantity: 1 })
-        };
-        renderResult(currentTrade);
+        if (attempt === MAX_ATTEMPTS) break;
+        await waitBetweenSearches(runId, attempt);
+        await returnToSearchForm(runId);
       }
 
-      const budgetCopy = best.withinBudget ? "entro il budget" : "oltre il budget";
-      updateScoutStatus(`${playerName}: ${formatCoins(best.buyNow)} crediti, ${budgetCopy}. Acquista tu manualmente.`, best.withinBudget ? "success" : "warning");
-      setTimeout(() => setOpen(false), 900);
+      updateScoutStatus(`Nessuna offerta entro ${formatCoins(maximumBuy)} crediti dopo ${MAX_ATTEMPTS} tentativi.`, "warning");
     } catch (error) {
       if (runId === scoutRun) updateScoutStatus(error.message || "Ricerca non riuscita", "error");
     } finally {
@@ -308,19 +335,22 @@
       })
     };
     renderResult(currentTrade);
-  });
-
-  scoutForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const data = new FormData(scoutForm);
-    const playerName = String(data.get("scoutPlayer") || "").trim();
-    const maximumBuy = FcMarket.toCoins(data.get("scoutMax"));
-    const expectedSale = FcMarket.toCoins(data.get("scoutSell"));
+    const playerName = currentTrade.player;
+    const maximumBuy = currentTrade.buyPrice;
+    const expectedSale = currentTrade.sellPrice;
     if (!playerName || !maximumBuy) {
       updateScoutStatus("Inserisci giocatore e prezzo massimo.", "error");
       return;
     }
     runScout({ playerName, maximumBuy, expectedSale });
+  });
+
+  form.elements.player.addEventListener("change", () => {
+    const value = form.elements.player.value.trim().toLocaleLowerCase();
+    const player = playerIndex.find((entry) => entry.name.toLocaleLowerCase() === value);
+    shell.querySelector("[data-player-meta]").textContent = player
+      ? `OVR ${player.overall} · ${player.position} · FUTBIN ${player.price ? formatCoins(player.price) : "prezzo n/d"}`
+      : `${playerIndex.length} carte FUTBIN nel file locale`;
   });
 
   shell.querySelector("[data-scout-stop]").addEventListener("click", () => {
@@ -348,6 +378,8 @@
     shell.hidden = !settings.enabled;
     renderWatchlist();
   });
+
+  loadPlayerIndex();
 
   chrome.storage.onChanged.addListener((changes) => {
     Object.entries(changes).forEach(([key, change]) => { settings[key] = change.newValue; });

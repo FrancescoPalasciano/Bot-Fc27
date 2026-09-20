@@ -33,6 +33,7 @@
 .fc27-field input, .fc27-readonly { width: 100%; min-height: 46px; padding: 0 13px; border: 1px solid var(--fc-line); border-radius: 8px; outline: none; background: var(--fc-surface); color: var(--fc-text); font: inherit; }
 .fc27-field input:focus { border-color: var(--fc-accent); box-shadow: 0 0 0 3px rgba(198,255,74,.1); }
 .fc27-field input::placeholder { color: #62695f; }
+.fc27-player-meta { min-height: 14px; color: #7f887b; font-size: 9px; line-height: 1.35; }
 .fc27-readonly { align-content: center; }
 .fc27-readonly span { font-size: 10px; }
 .fc27-readonly strong { font-size: 16px; }
