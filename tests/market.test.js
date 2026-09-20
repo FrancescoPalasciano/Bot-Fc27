@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { calculateTrade, rateTrade, toCoins, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity } = require("../src/market.js");
+const { calculateTrade, rateTrade, toCoins, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, normalizeSearchText } = require("../src/market.js");
 
 test("normalizza i valori delle monete", () => {
   assert.equal(toCoins("12.500 coins"), 12500);
@@ -59,4 +59,9 @@ test("riassume le ricerche locali dell'ultima ora e giornata", () => {
   const now = Date.UTC(2026, 8, 20, 12);
   const summary = summarizeActivity([now - 1000, now - 2 * 60 * 60 * 1000, now - 25 * 60 * 60 * 1000], now);
   assert.deepEqual(summary, { lastHour: 1, lastDay: 2 });
+});
+
+test("confronta i nomi dei giocatori ignorando accenti e spazi", () => {
+  assert.equal(normalizeSearchText("  Kylian  Mbappé "), "kylian mbappe");
+  assert.ok(normalizeSearchText("Kylian Mbappé").includes(normalizeSearchText("Mbappe")));
 });

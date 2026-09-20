@@ -90,7 +90,16 @@
     return { lastHour, lastDay };
   }
 
-  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity };
+  function normalizeSearchText(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLocaleLowerCase();
+  }
+
+  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, normalizeSearchText };
   root.FcMarket = api;
 
   if (typeof module !== "undefined" && module.exports) {

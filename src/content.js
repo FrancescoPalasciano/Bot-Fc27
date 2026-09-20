@@ -411,9 +411,16 @@
 
       const suggestion = await waitFor(() => {
         const candidates = [...document.querySelectorAll(".playerResultsList button")];
-        return candidates.find((button) => button.textContent.toLocaleLowerCase().includes(playerName.toLocaleLowerCase())) || candidates[0];
+        const query = FcMarket.normalizeSearchText(playerName);
+        return candidates.find((button) => FcMarket.normalizeSearchText(button.querySelector(".btn-text")?.textContent || button.textContent).includes(query)) || candidates[0];
       }, 7000, 80, runId, `La Web App non propone ${playerName}: seleziona una carta valida dall’autocompletamento`);
+      const selectedPlayerName = suggestion.querySelector(".btn-text")?.textContent?.trim() || playerName;
       clickAction(suggestion);
+      await waitFor(() => {
+        const confirmedName = FcMarket.normalizeSearchText(playerInput.value) === FcMarket.normalizeSearchText(selectedPlayerName);
+        const openChoices = document.querySelectorAll(".playerResultsList button").length;
+        return confirmedName && openChoices === 0 ? playerInput : null;
+      }, 5000, 80, runId, `La Web App non ha confermato la carta ${selectedPlayerName}`);
 
       const priceInputs = await waitFor(() => {
         const inputs = [...document.querySelectorAll("input.ut-number-input-control")];
