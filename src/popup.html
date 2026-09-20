@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FC27 Market Companion</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="brand">FC27</span>
+        <div><small>MARKET COMPANION</small><h1>Impostazioni</h1></div>
+      </header>
+      <label class="toggle-row">
+        <span><strong>Assistente nella Web App</strong><small>Mostra il pulsante laterale</small></span>
+        <input id="enabled" type="checkbox"><i></i>
+      </label>
+      <section>
+        <label>Utile minimo interessante <input id="minimumProfit" type="number" min="0" step="50"></label>
+        <label>Budget massimo per carta <input id="maximumBuy" type="number" min="0" step="100"></label>
+      </section>
+      <p class="privacy">I dati restano nel browser. Nessuna password, cookie o richiesta EA viene letta.</p>
+      <output id="saved" aria-live="polite"></output>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

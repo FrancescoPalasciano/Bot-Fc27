@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "FC27 Market Companion",
+  "version": "0.1.0",
+  "description": "Assistente locale per valutare operazioni nel mercato FC Ultimate Team, con conferma manuale.",
+  "permissions": ["storage"],
+  "action": {
+    "default_title": "FC27 Market Companion",
+    "default_popup": "src/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.ea.com/ea-sports-fc/ultimate-team/web-app/*"
+      ],
+      "css": ["src/content.css"],
+      "js": ["src/market.js", "src/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

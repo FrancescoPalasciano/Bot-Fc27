@@ -1,0 +1,11 @@
+{
+  "name": "bot-fc27",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first Chrome market companion for EA SPORTS FC Ultimate Team.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node --check src/market.js && node --check src/content.js && node --check src/popup.js"
+  },
+  "license": "MIT"
+}
