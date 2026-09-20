@@ -4,7 +4,7 @@
   if (window.top !== window || document.querySelector("[data-fc27-root]")) return;
 
   const storage = chrome.storage.local;
-  const defaults = { enabled: true, minimumProfit: 500, maximumBuy: 15000, watchlist: [], savedFilters: [], activity: { searches: [], matches: 0 } };
+  const defaults = { enabled: true, minimumProfit: 500, maximumBuy: 15000, watchlist: [], savedFilters: [], marketHistory: [], activity: { searches: [], matches: 0 } };
   const formatCoins = (value) => new Intl.NumberFormat("it-IT").format(value || 0);
 
   const shell = document.createElement("div");
@@ -84,6 +84,33 @@
           <div><span>Totale</span><strong data-total>0</strong></div>
         </div>
         <button class="fc27-secondary" type="button" data-save>+ Salva in watchlist</button>
+      </section>
+
+      <section class="fc27-market-observed" aria-label="Mercato osservato">
+        <div class="fc27-section-title">
+          <h2>Mercato osservato</h2>
+          <span data-market-count>0 rilevazioni</span>
+        </div>
+        <div class="fc27-market-empty" data-market-empty>
+          <p>Nessun prezzo osservato.</p>
+          <small>Le rilevazioni compaiono dopo una ricerca con risultati visibili.</small>
+        </div>
+        <div class="fc27-market-summary" data-market-summary hidden>
+          <div class="fc27-market-heading">
+            <strong data-market-player>—</strong>
+            <span data-market-time>—</span>
+          </div>
+          <dl class="fc27-market-metrics">
+            <div><dt>Minimo</dt><dd data-market-min>0</dd></div>
+            <div><dt>Mediana</dt><dd data-market-median>0</dd></div>
+            <div><dt>Massimo</dt><dd data-market-max>0</dd></div>
+          </dl>
+          <div class="fc27-market-trend" data-market-trend>
+            <span data-market-direction>Prima rilevazione</span>
+            <strong data-market-change>—</strong>
+          </div>
+          <button class="fc27-market-clear" type="button" data-market-clear>Elimina storico prezzi</button>
+        </div>
       </section>
 
       <section class="fc27-filters">
@@ -201,6 +228,48 @@
     shell.querySelector("[data-searches-hour]").textContent = summary.lastHour;
     shell.querySelector("[data-searches-day]").textContent = summary.lastDay;
     shell.querySelector("[data-matches]").textContent = activity.matches;
+  }
+
+  function marketHistory() {
+    return Array.isArray(settings.marketHistory) ? settings.marketHistory : [];
+  }
+
+  function renderMarketInsights(playerName = form.elements.player.value.trim()) {
+    const allSnapshots = marketHistory();
+    const normalizedPlayer = FcMarket.normalizeSearchText(playerName);
+    const snapshots = normalizedPlayer
+      ? allSnapshots.filter((entry) => FcMarket.normalizeSearchText(entry.player) === normalizedPlayer)
+      : allSnapshots;
+    const latest = snapshots[0];
+    const previous = snapshots[1];
+    const empty = shell.querySelector("[data-market-empty]");
+    const summary = shell.querySelector("[data-market-summary]");
+    shell.querySelector("[data-market-count]").textContent = `${snapshots.length} ${snapshots.length === 1 ? "rilevazione" : "rilevazioni"}`;
+    empty.hidden = Boolean(latest);
+    summary.hidden = !latest;
+    if (!latest) return;
+
+    const trend = FcMarket.comparePriceSnapshots(latest, previous);
+    const trendLabels = { up: "Mediana in aumento", down: "Mediana in calo", flat: previous ? "Mediana stabile" : "Prima rilevazione" };
+    summary.dataset.trend = trend.direction;
+    shell.querySelector("[data-market-player]").textContent = latest.player;
+    shell.querySelector("[data-market-time]").textContent = new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(latest.timestamp);
+    shell.querySelector("[data-market-min]").textContent = formatCoins(latest.minimum);
+    shell.querySelector("[data-market-median]").textContent = formatCoins(latest.median);
+    shell.querySelector("[data-market-max]").textContent = formatCoins(latest.maximum);
+    shell.querySelector("[data-market-direction]").textContent = trendLabels[trend.direction];
+    shell.querySelector("[data-market-change]").textContent = previous
+      ? `${trend.change > 0 ? "+" : ""}${formatCoins(trend.change)} · ${trend.percent > 0 ? "+" : ""}${trend.percent.toFixed(1)}%`
+      : `${latest.count} ${latest.count === 1 ? "offerta" : "offerte"}`;
+  }
+
+  async function recordMarketSnapshot(player, listings) {
+    const priceSummary = FcMarket.summarizePrices(listings.map((listing) => listing.buyNow));
+    if (!priceSummary) return;
+    const snapshot = { id: crypto.randomUUID(), player, timestamp: Date.now(), ...priceSummary };
+    settings.marketHistory = [snapshot, ...marketHistory()].slice(0, 120);
+    await storage.set({ marketHistory: settings.marketHistory });
+    renderMarketInsights(player);
   }
 
   async function recordActivity(kind) {
@@ -342,6 +411,16 @@
       || [...document.querySelectorAll("input[type='text'], input:not([type])")].find((input) => /player|giocatore/i.test(input.placeholder || ""));
   }
 
+  function visibleMarketListings(runId) {
+    return waitFor(() => {
+      const rows = [...document.querySelectorAll(".paginated-item-list .listFUTItem")];
+      if (rows.length) return rows.map((element) => ({ element, ...FcMarket.parseListingText(element.innerText) }));
+      const emptyResult = [...document.querySelectorAll("h1, h2, h3, p, span")]
+        .some((node) => /^(no results found|nessun risultato|nessun oggetto trovato)$/i.test(node.textContent.trim()));
+      return emptyResult ? [] : null;
+    }, 6000, 100, runId, "I risultati non sono stati caricati dalla Web App");
+  }
+
   function updatePlayerMeta(player) {
     const meta = shell.querySelector("[data-player-meta]");
     if (player) {
@@ -461,8 +540,8 @@
         await recordActivity("search");
         await waitFor(() => findHeading("Search Results", "Risultati di ricerca"), 10000, 100, runId, "La ricerca non ha aperto la pagina dei risultati");
 
-        const rows = [...document.querySelectorAll(".paginated-item-list .listFUTItem")];
-        const listings = rows.map((element) => ({ element, ...FcMarket.parseListingText(element.innerText) }));
+        const listings = await visibleMarketListings(runId);
+        await recordMarketSnapshot(playerName, listings);
         const best = FcMarket.chooseBestListing(listings, maximumBuy);
 
         if (best?.withinBudget) {
@@ -529,6 +608,7 @@
     const player = playerIndex.find((entry) => entry.name.toLocaleLowerCase() === value);
     updatePlayerMeta(player);
     renderPlayerSuggestions();
+    renderMarketInsights(form.elements.player.value.trim());
   });
 
   form.elements.player.addEventListener("keydown", (event) => {
@@ -594,12 +674,20 @@
     renderWatchlist();
   });
 
+  shell.querySelector("[data-market-clear]").addEventListener("click", async () => {
+    settings.marketHistory = [];
+    await storage.set({ marketHistory: [] });
+    renderMarketInsights();
+    updateScoutStatus("Storico prezzi eliminato dal dispositivo.", "success");
+  });
+
   storage.get(defaults).then((saved) => {
     settings = saved;
     shell.hidden = !settings.enabled;
     renderWatchlist();
     renderSavedFilters();
     renderDashboard();
+    renderMarketInsights();
   });
 
   loadPlayerIndex();
@@ -610,5 +698,6 @@
     renderWatchlist();
     renderSavedFilters();
     renderDashboard();
+    renderMarketInsights();
   });
 })();

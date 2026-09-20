@@ -44,7 +44,7 @@
       && !/^(start price|bid|buy now|time|pac|sho|pas|dri|def|phy)$/i.test(part)
       && !/^[A-Z]{1,3}$/.test(part)
     ) || "Giocatore";
-    const match = source.match(/Buy Now:\s*([\d.,]+)/i);
+    const match = source.match(/(?:Buy Now|Compra ora):\s*([\d.,]+)/i);
     return {
       player,
       buyNow: match ? toCoins(match[1]) : 0
@@ -90,6 +90,32 @@
     return { lastHour, lastDay };
   }
 
+  function summarizePrices(values) {
+    const prices = (Array.isArray(values) ? values : [])
+      .map(toCoins)
+      .filter((value) => value > 0)
+      .sort((a, b) => a - b);
+    if (!prices.length) return null;
+    const middle = Math.floor(prices.length / 2);
+    const median = prices.length % 2
+      ? prices[middle]
+      : Math.round((prices[middle - 1] + prices[middle]) / 2);
+    return { count: prices.length, minimum: prices[0], median, maximum: prices.at(-1) };
+  }
+
+  function comparePriceSnapshots(current, previous) {
+    const currentMedian = toCoins(current?.median);
+    const previousMedian = toCoins(previous?.median);
+    if (!currentMedian || !previousMedian) return { direction: "flat", change: 0, percent: 0 };
+    const change = currentMedian - previousMedian;
+    const percent = (change / previousMedian) * 100;
+    return {
+      direction: change > 0 ? "up" : change < 0 ? "down" : "flat",
+      change,
+      percent
+    };
+  }
+
   function normalizeSearchText(value) {
     return String(value || "")
       .normalize("NFD")
@@ -99,7 +125,7 @@
       .toLocaleLowerCase();
   }
 
-  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, normalizeSearchText };
+  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, summarizePrices, comparePriceSnapshots, normalizeSearchText };
   root.FcMarket = api;
 
   if (typeof module !== "undefined" && module.exports) {

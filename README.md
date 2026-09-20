@@ -12,6 +12,7 @@ Estensione Chrome locale per valutare operazioni sul mercato di EA SPORTS FC Ult
 - prezzo massimo suggerito dal prezzo locale, con tassa e utile minimo inclusi;
 - punteggio opportunità 0–100, filtri rapidi salvati e dashboard delle ricerche locali;
 - contatori ultima ora/24 ore e numero di occasioni trovate;
+- storico locale dei prezzi mostrati nei risultati, con minimo, mediana, massimo e confronto con la rilevazione precedente;
 - soglia di profitto configurabile;
 - watchlist salvata soltanto in `chrome.storage.local`;
 - nessun server, account, cookie o credenziale richiesti.
@@ -40,6 +41,10 @@ Se il pannello mostra `0 carte FUTBIN`, verifica che la versione dell’estensio
 Il monitor non preme **Compra ora** e non conferma transazioni. Puoi fermarlo in qualsiasi momento.
 
 Le funzioni ispirate ai prodotti di trading automatico sono state implementate in forma assistita: pricing, punteggio, filtri, limiti e statistiche. Auto-acquisto, auto-vendita, auto-bid, aggiramento di CAPTCHA e simulazione “umana” non sono inclusi.
+
+### Mercato osservato
+
+Quando una pagina di risultati contiene offerte, l’estensione salva un riepilogo locale dei prezzi visibili. Nel pannello **Mercato osservato** trovi minimo, mediana, massimo e variazione rispetto alla rilevazione precedente dello stesso giocatore. Lo storico conserva al massimo 120 rilevazioni in `chrome.storage.local` e può essere eliminato dal pannello.
 
 ### Database giocatori
 

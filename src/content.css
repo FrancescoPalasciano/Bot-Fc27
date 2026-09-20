@@ -1,5 +1,7 @@
 [data-fc27-root], [data-fc27-root] * { box-sizing: border-box; }
 [data-fc27-root] { --fc-bg: #101310; --fc-surface: #171b17; --fc-line: #30372f; --fc-text: #f3f5ed; --fc-muted: #989f94; --fc-accent: #c6ff4a; --fc-danger: #ff735f; color: var(--fc-text); font-family: Inter, "Segoe UI", Arial, sans-serif; }
+[data-fc27-root] ::selection { background: var(--fc-accent); color: #11150d; }
+.fc27-panel { scrollbar-color: #46523e var(--fc-bg); scrollbar-width: thin; }
 .fc27-launcher { position: fixed; z-index: 2147483645; left: 0; top: 36%; width: 58px; min-height: 94px; padding: 10px 7px; border: 1px solid #d3ff72; border-left: 0; border-radius: 0 12px 12px 0; background: var(--fc-accent); color: #11150d; box-shadow: 0 12px 34px rgba(0,0,0,.28); cursor: pointer; display: grid; justify-items: center; gap: 7px; transition: transform .2s ease, filter .2s ease; }
 .fc27-launcher:hover { filter: brightness(1.06); transform: translateX(2px); }
 .fc27-launcher-mark { font: 900 23px/1 Arial, sans-serif; letter-spacing: -2px; }
@@ -69,7 +71,26 @@
 .fc27-metrics span { margin-bottom: 4px; color: var(--fc-muted); font-size: 9px; }
 .fc27-metrics strong { font-size: 13px; }
 .fc27-secondary { width: 100%; min-height: 40px; border: 1px solid #566349; border-radius: 7px; background: transparent; color: var(--fc-text); font-weight: 800; cursor: pointer; }
-.fc27-filters, .fc27-watch { margin-top: 30px; }
+.fc27-market-observed, .fc27-filters, .fc27-watch { margin-top: 30px; }
+.fc27-market-empty { padding: 18px 0 4px; color: var(--fc-muted); }
+.fc27-market-empty p { margin: 0 0 4px; color: var(--fc-text); font-size: 12px; font-weight: 800; }
+.fc27-market-empty small { font-size: 10px; line-height: 1.45; }
+.fc27-market-summary { padding-top: 14px; }
+.fc27-market-summary[hidden], .fc27-market-empty[hidden] { display: none; }
+.fc27-market-heading, .fc27-market-trend { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fc27-market-heading strong { max-width: 245px; overflow: hidden; color: var(--fc-text); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.fc27-market-heading span { color: var(--fc-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.fc27-market-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 12px 0 0; overflow: hidden; border: 1px solid var(--fc-line); border-radius: 9px; background: var(--fc-line); }
+.fc27-market-metrics div { min-width: 0; padding: 10px; background: #151915; }
+.fc27-market-metrics dt, .fc27-market-metrics dd { margin: 0; }
+.fc27-market-metrics dt { color: var(--fc-muted); font-size: 9px; }
+.fc27-market-metrics dd { margin-top: 4px; overflow: hidden; color: var(--fc-text); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
+.fc27-market-trend { padding: 11px 0; border-bottom: 1px solid #252b24; color: var(--fc-muted); font-size: 10px; }
+.fc27-market-trend strong { color: var(--fc-text); font-variant-numeric: tabular-nums; }
+.fc27-market-summary[data-trend="up"] .fc27-market-trend strong { color: #ffd15c; }
+.fc27-market-summary[data-trend="down"] .fc27-market-trend strong { color: var(--fc-accent); }
+.fc27-market-clear { margin-top: 10px; padding: 0; border: 0; background: none; color: var(--fc-muted); font-size: 9px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.fc27-market-clear:hover, .fc27-market-clear:focus-visible { color: var(--fc-text); }
 .fc27-filter-list { display: grid; gap: 7px; padding-top: 10px; }
 .fc27-filter-list > small { padding: 8px 0; color: var(--fc-muted); }
 .fc27-filter-chip { display: grid; grid-template-columns: 1fr 30px; gap: 4px; }
@@ -98,6 +119,7 @@
 .fc27-footer span { display: flex; align-items: center; gap: 7px; }
 .fc27-footer i { width: 6px; height: 6px; border-radius: 50%; background: var(--fc-accent); }
 .fc27-footer button { border: 0; background: none; color: var(--fc-muted); font-size: 9px; text-decoration: underline; cursor: pointer; }
+[data-fc27-root] button:focus-visible { outline: 2px solid var(--fc-accent); outline-offset: 2px; }
 @media (max-width: 480px) { .fc27-panel { padding: 22px 18px; } .fc27-launcher { top: auto; bottom: 90px; } }
 @media (prefers-reduced-motion: reduce) { .fc27-panel, .fc27-launcher { transition: none; } }
 .fc27-scout-match { position: relative !important; outline: 4px solid var(--fc-accent, #c6ff4a) !important; outline-offset: -4px !important; box-shadow: 0 0 0 5px rgba(198,255,74,.28), 0 12px 32px rgba(0,0,0,.32) !important; }

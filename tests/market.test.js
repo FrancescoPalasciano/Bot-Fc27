@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { calculateTrade, rateTrade, toCoins, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, normalizeSearchText } = require("../src/market.js");
+const { calculateTrade, rateTrade, toCoins, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, summarizePrices, comparePriceSnapshots, normalizeSearchText } = require("../src/market.js");
 
 test("normalizza i valori delle monete", () => {
   assert.equal(toCoins("12.500 coins"), 12500);
@@ -27,6 +27,7 @@ test("legge il prezzo Compra ora da una riga della Web App", () => {
   const listing = parseListingText("81\nRW\nIago Aspas\nStart Price:\n600\nBid\n---\nBuy Now:\n2,000\nTime\n1 Minute");
   assert.equal(listing.player, "Iago Aspas");
   assert.equal(listing.buyNow, 2000);
+  assert.equal(parseListingText("Iago Aspas\nCompra ora:\n1.900").buyNow, 1900);
 });
 
 test("seleziona l'offerta più economica entro budget", () => {
@@ -64,4 +65,23 @@ test("riassume le ricerche locali dell'ultima ora e giornata", () => {
 test("confronta i nomi dei giocatori ignorando accenti e spazi", () => {
   assert.equal(normalizeSearchText("  Kylian  Mbappé "), "kylian mbappe");
   assert.ok(normalizeSearchText("Kylian Mbappé").includes(normalizeSearchText("Mbappe")));
+});
+
+test("riassume i prezzi osservati usando la mediana", () => {
+  assert.deepEqual(summarizePrices([1500, "1.000", 2000, 1200]), {
+    count: 4,
+    minimum: 1000,
+    median: 1350,
+    maximum: 2000
+  });
+  assert.equal(summarizePrices([0, "n/a"]), null);
+});
+
+test("confronta due rilevazioni del mercato", () => {
+  assert.deepEqual(comparePriceSnapshots({ median: 9000 }, { median: 10000 }), {
+    direction: "down",
+    change: -1000,
+    percent: -10
+  });
+  assert.equal(comparePriceSnapshots({ median: 10000 }, null).direction, "flat");
 });
