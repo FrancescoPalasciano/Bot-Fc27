@@ -27,6 +27,8 @@ Estensione Chrome locale per valutare operazioni sul mercato di EA SPORTS FC Ult
 
 Dopo ogni aggiornamento del codice, torna nella pagina delle estensioni, premi **Ricarica** sulla scheda di FC27 Market Companion e poi ricarica la Web App.
 
+La versione `0.6.1` riconosce il pulsante **Cerca** soltanto quando è visibile e abilitato, invia la sequenza completa di interazione e rileva la pagina risultati anche quando il titolo usato dalla Web App cambia.
+
 Se il pannello mostra `0 carte FUTBIN`, verifica che la versione dell’estensione sia almeno `0.3.1`, premi **Ricarica** nella pagina delle estensioni e quindi aggiorna la scheda EA. Il catalogo JSON viene caricato soltanto all’avvio del content script.
 
 ## Monitor mercato

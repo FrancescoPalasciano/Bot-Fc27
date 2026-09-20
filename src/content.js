@@ -340,19 +340,43 @@
     input.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  function buttonByText(text) {
-    const wanted = text.toLocaleLowerCase();
-    return [...document.querySelectorAll("button")].find((button) => button.textContent.trim().toLocaleLowerCase() === wanted);
-  }
-
   function visibleText(node) {
     return node?.textContent?.replace(/\s+/g, " ").trim().toLocaleLowerCase() || "";
+  }
+
+  function isElementVisible(node) {
+    if (!node || node.closest("[data-fc27-root]")) return false;
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+  }
+
+  function marketSearchButton() {
+    return [...document.querySelectorAll("button")].find((button) =>
+      /^(search|cerca)$/i.test(button.textContent.trim())
+      && isElementVisible(button)
+      && !button.disabled
+      && button.getAttribute("aria-disabled") !== "true"
+    );
   }
 
   function clickAction(node) {
     const target = node?.closest("button, [role='button'], .tile, .ut-tile, .rowContent") || node;
     if (!target) return false;
     target.scrollIntoView({ block: "center" });
+    target.click();
+    return true;
+  }
+
+  function pressAction(node) {
+    const target = node?.closest("button, [role='button']") || node;
+    if (!target) return false;
+    target.scrollIntoView({ block: "center" });
+    target.focus({ preventScroll: true });
+    ["pointerdown", "mousedown", "pointerup", "mouseup"].forEach((type) => {
+      const EventType = type.startsWith("pointer") && typeof PointerEvent === "function" ? PointerEvent : MouseEvent;
+      target.dispatchEvent(new EventType(type, { bubbles: true, cancelable: true, view: window, button: 0 }));
+    });
     target.click();
     return true;
   }
@@ -394,21 +418,34 @@
 
   function findHeading(...texts) {
     const wanted = texts.map((text) => text.toLocaleLowerCase());
-    return [...document.querySelectorAll("h1, h2")].find((node) => wanted.includes(visibleText(node)));
+    return [...document.querySelectorAll("h1, h2, h3")].find((node) =>
+      isElementVisible(node) && wanted.some((text) => visibleText(node).includes(text))
+    );
+  }
+
+  function marketResultsState() {
+    const heading = findHeading("Search Results", "Risultati di ricerca", "Transfer Market Results", "Risultati mercato");
+    const visibleRow = [...document.querySelectorAll(".paginated-item-list .listFUTItem")].find(isElementVisible);
+    const visibleList = [...document.querySelectorAll(".paginated-item-list")].find(isElementVisible);
+    const emptyResult = [...document.querySelectorAll("h1, h2, h3, p, span")].find((node) =>
+      isElementVisible(node) && /^(no results found|no items found|nessun risultato|nessun oggetto trovato)$/i.test(node.textContent.trim())
+    );
+    return heading || visibleRow || visibleList || emptyResult || null;
   }
 
   async function returnToSearchForm(runId) {
-    const heading = await waitFor(() => findHeading("Search Results", "Risultati di ricerca"), 7000, 80, runId, "La pagina dei risultati non è più riconoscibile");
-    const header = heading.closest("header, .ut-navigation-container-view--header") || heading.parentElement;
-    const backButton = header?.querySelector("button") || document.querySelector("button.ut-navigation-button-control");
+    const resultMarker = await waitFor(() => marketResultsState(), 7000, 80, runId, "La pagina dei risultati non è più riconoscibile");
+    const resultView = resultMarker.closest(".ut-navigation-container-view") || document;
+    const backButton = [...resultView.querySelectorAll("button.ut-navigation-button-control, header button")].find(isElementVisible)
+      || [...document.querySelectorAll("button.ut-navigation-button-control")].find(isElementVisible);
     if (!backButton) throw new Error("Pulsante per ripetere la ricerca non trovato");
-    clickAction(backButton);
+    pressAction(backButton);
     await waitFor(() => playerSearchInput(), 7000, 80, runId, "Non riesco a tornare ai filtri di ricerca");
   }
 
   function playerSearchInput() {
-    return document.querySelector('input[placeholder="Type Player Name"], input[placeholder="Digita nome giocatore"]')
-      || [...document.querySelectorAll("input[type='text'], input:not([type])")].find((input) => /player|giocatore/i.test(input.placeholder || ""));
+    return [...document.querySelectorAll('input[placeholder="Type Player Name"], input[placeholder="Digita nome giocatore"], input[type="text"], input:not([type])')]
+      .find((input) => isElementVisible(input) && /player|giocatore/i.test(input.placeholder || ""));
   }
 
   function visibleMarketListings(runId) {
@@ -416,7 +453,7 @@
       const rows = [...document.querySelectorAll(".paginated-item-list .listFUTItem")];
       if (rows.length) return rows.map((element) => ({ element, ...FcMarket.parseListingText(element.innerText) }));
       const emptyResult = [...document.querySelectorAll("h1, h2, h3, p, span")]
-        .some((node) => /^(no results found|nessun risultato|nessun oggetto trovato)$/i.test(node.textContent.trim()));
+        .some((node) => isElementVisible(node) && /^(no results found|no items found|nessun risultato|nessun oggetto trovato)$/i.test(node.textContent.trim()));
       return emptyResult ? [] : null;
     }, 6000, 100, runId, "I risultati non sono stati caricati dalla Web App");
   }
@@ -528,17 +565,17 @@
       await new Promise((resolve) => setTimeout(resolve, 350));
 
       const priceInputs = await waitFor(() => {
-        const inputs = [...document.querySelectorAll("input.ut-number-input-control")];
+        const inputs = [...document.querySelectorAll("input.ut-number-input-control")].filter(isElementVisible);
         return inputs.length >= 6 ? inputs : null;
       }, 7000, 80, runId, "Campo Prezzo Compra ora massimo non trovato");
       setNativeValue(priceInputs.at(-1), maximumBuy);
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
         updateScoutStatus(`Tentativo ${attempt}/${MAX_ATTEMPTS}: cerco offerte…`);
-        const searchButton = await waitFor(() => buttonByText("Search") || buttonByText("Cerca"), 5000, 80, runId, "Pulsante Cerca non trovato");
-        clickAction(searchButton);
+        const searchButton = await waitFor(() => marketSearchButton(), 7000, 80, runId, "Il pulsante Cerca è assente o disabilitato: controlla i filtri della Web App");
+        pressAction(searchButton);
         await recordActivity("search");
-        await waitFor(() => findHeading("Search Results", "Risultati di ricerca"), 10000, 100, runId, "La ricerca non ha aperto la pagina dei risultati");
+        await waitFor(() => marketResultsState(), 12000, 100, runId, "Il clic su Cerca non è stato accettato dalla Web App: verifica giocatore e prezzo massimo");
 
         const listings = await visibleMarketListings(runId);
         await recordMarketSnapshot(playerName, listings);
