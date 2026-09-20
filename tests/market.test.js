@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { calculateTrade, rateTrade, toCoins } = require("../src/market.js");
+const { calculateTrade, rateTrade, toCoins, parseListingText, chooseBestListing } = require("../src/market.js");
 
 test("normalizza i valori delle monete", () => {
   assert.equal(toCoins("12.500 coins"), 12500);
@@ -21,4 +21,22 @@ test("classifica il margine rispetto alla soglia", () => {
   assert.equal(rateTrade(calculateTrade({ buyPrice: 1000, sellPrice: 2000 }), 500), "good");
   assert.equal(rateTrade(calculateTrade({ buyPrice: 1000, sellPrice: 1300 }), 500), "thin");
   assert.equal(rateTrade(calculateTrade({ buyPrice: 1000, sellPrice: 900 }), 500), "loss");
+});
+
+test("legge il prezzo Compra ora da una riga della Web App", () => {
+  const listing = parseListingText("81\nRW\nIago Aspas\nStart Price:\n600\nBid\n---\nBuy Now:\n2,000\nTime\n1 Minute");
+  assert.equal(listing.player, "Iago Aspas");
+  assert.equal(listing.buyNow, 2000);
+});
+
+test("seleziona l'offerta più economica entro budget", () => {
+  const best = chooseBestListing([{ buyNow: 900 }, { buyNow: 650 }, { buyNow: 700 }], 700);
+  assert.equal(best.buyNow, 650);
+  assert.equal(best.withinBudget, true);
+});
+
+test("segnala quando la migliore offerta supera il budget", () => {
+  const best = chooseBestListing([{ buyNow: 900 }, { buyNow: 800 }], 700);
+  assert.equal(best.buyNow, 800);
+  assert.equal(best.withinBudget, false);
 });

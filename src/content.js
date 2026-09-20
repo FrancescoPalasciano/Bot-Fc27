@@ -25,8 +25,38 @@
 
       <div class="fc27-notice" role="note">
         <span class="fc27-notice-dot"></span>
-        Solo analisi. Acquisti e vendite restano manuali.
+        Lo Scout si ferma sempre prima dell’acquisto.
       </div>
+
+      <section class="fc27-scout">
+        <div class="fc27-section-title fc27-section-title--compact">
+          <div>
+            <p class="fc27-eyebrow">RICERCA ASSISTITA</p>
+            <h2>Scout mercato</h2>
+          </div>
+          <span>1 ricerca</span>
+        </div>
+        <form class="fc27-scout-form" data-scout-form>
+          <label class="fc27-field fc27-field-wide">
+            <span>Nome esatto del giocatore</span>
+            <input name="scoutPlayer" maxlength="60" placeholder="Es. Iago Aspas" autocomplete="off" required>
+          </label>
+          <label class="fc27-field">
+            <span>Compra ora massimo</span>
+            <input name="scoutMax" inputmode="numeric" placeholder="700" required>
+          </label>
+          <label class="fc27-field">
+            <span>Rivendita prevista</span>
+            <input name="scoutSell" inputmode="numeric" placeholder="1.000">
+          </label>
+          <button class="fc27-primary" type="submit" data-scout-start>Trova e apri l’offerta <span>↗</span></button>
+          <button class="fc27-secondary fc27-scout-stop" type="button" data-scout-stop hidden>Ferma ricerca</button>
+        </form>
+        <div class="fc27-scout-status" data-scout-status role="status" aria-live="polite">
+          <i></i><span>Pronto. Nessuna azione verrà confermata.</span>
+        </div>
+        <p class="fc27-risk">L’automazione può violare le regole EA anche senza acquisto automatico.</p>
+      </section>
 
       <form class="fc27-form" data-trade-form>
         <label class="fc27-field fc27-field-wide">
@@ -96,9 +126,12 @@
   const launcher = shell.querySelector(".fc27-launcher");
   const panel = shell.querySelector(".fc27-panel");
   const form = shell.querySelector("[data-trade-form]");
+  const scoutForm = shell.querySelector("[data-scout-form]");
+  const scoutStatus = shell.querySelector("[data-scout-status]");
   const resultBox = shell.querySelector("[data-result]");
   let currentTrade = null;
   let settings = { ...defaults };
+  let scoutRun = 0;
 
   function setOpen(open) {
     shell.classList.toggle("fc27-is-open", open);
@@ -157,6 +190,108 @@
     resultBox.querySelector("[data-status]").textContent = status[0];
   }
 
+  function updateScoutStatus(message, state = "working") {
+    scoutStatus.dataset.state = state;
+    scoutStatus.querySelector("span").textContent = message;
+  }
+
+  function waitFor(getValue, timeout = 5000, interval = 80, runId = scoutRun) {
+    return new Promise((resolve, reject) => {
+      const started = Date.now();
+      const check = () => {
+        if (runId !== scoutRun) return reject(new Error("Ricerca fermata"));
+        const value = getValue();
+        if (value) return resolve(value);
+        if (Date.now() - started >= timeout) return reject(new Error("Elemento della Web App non trovato"));
+        setTimeout(check, interval);
+      };
+      check();
+    });
+  }
+
+  function setNativeValue(input, value) {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    if (setter) setter.call(input, String(value));
+    else input.value = String(value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function buttonByText(text) {
+    return [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === text);
+  }
+
+  async function runScout({ playerName, maximumBuy, expectedSale }) {
+    const runId = ++scoutRun;
+    shell.querySelector("[data-scout-start]").disabled = true;
+    shell.querySelector("[data-scout-stop]").hidden = false;
+    document.querySelectorAll(".fc27-scout-match").forEach((node) => node.classList.remove("fc27-scout-match"));
+
+    try {
+      updateScoutStatus("Apro Trasferimenti…");
+      const transferButton = await waitFor(() => document.querySelector("button.ut-tab-bar-item.icon-transfer"), 4000, 80, runId);
+      transferButton.click();
+
+      updateScoutStatus("Apro la ricerca mercato…");
+      const searchMarket = await waitFor(() => [...document.querySelectorAll("h1")].find((node) => node.textContent.trim() === "Search the Transfer Market"), 5000, 80, runId);
+      searchMarket.click();
+
+      updateScoutStatus(`Cerco ${playerName}…`);
+      const playerInput = await waitFor(() => document.querySelector('input[placeholder="Type Player Name"]'), 5000, 80, runId);
+      setNativeValue(playerInput, playerName);
+      playerInput.focus();
+
+      const suggestion = await waitFor(() => {
+        const candidates = [...document.querySelectorAll(".playerResultsList button")];
+        return candidates.find((button) => button.textContent.toLocaleLowerCase().includes(playerName.toLocaleLowerCase())) || candidates[0];
+      }, 5000, 80, runId);
+      suggestion.click();
+
+      const priceInputs = await waitFor(() => {
+        const inputs = [...document.querySelectorAll("input.ut-number-input-control")];
+        return inputs.length >= 6 ? inputs : null;
+      }, 4000, 80, runId);
+      setNativeValue(priceInputs.at(-1), maximumBuy);
+
+      updateScoutStatus("Confronto le offerte visibili…");
+      const searchButton = await waitFor(() => buttonByText("Search"), 3000, 80, runId);
+      searchButton.click();
+
+      const rows = await waitFor(() => {
+        const items = [...document.querySelectorAll(".paginated-item-list .listFUTItem")];
+        return items.length ? items : null;
+      }, 7000, 100, runId);
+
+      const listings = rows.map((element) => ({ element, ...FcMarket.parseListingText(element.innerText) }));
+      const best = FcMarket.chooseBestListing(listings, maximumBuy);
+      if (!best) throw new Error("Nessuna offerta con prezzo Compra ora leggibile");
+
+      best.element.classList.add("fc27-scout-match");
+      (best.element.querySelector(".rowContent") || best.element).click();
+      best.element.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      if (expectedSale > 0) {
+        currentTrade = {
+          id: crypto.randomUUID(),
+          player: playerName,
+          ...FcMarket.calculateTrade({ buyPrice: best.buyNow, sellPrice: expectedSale, quantity: 1 })
+        };
+        renderResult(currentTrade);
+      }
+
+      const budgetCopy = best.withinBudget ? "entro il budget" : "oltre il budget";
+      updateScoutStatus(`${playerName}: ${formatCoins(best.buyNow)} crediti, ${budgetCopy}. Acquista tu manualmente.`, best.withinBudget ? "success" : "warning");
+      setTimeout(() => setOpen(false), 900);
+    } catch (error) {
+      if (runId === scoutRun) updateScoutStatus(error.message || "Ricerca non riuscita", "error");
+    } finally {
+      if (runId === scoutRun) {
+        shell.querySelector("[data-scout-start]").disabled = false;
+        shell.querySelector("[data-scout-stop]").hidden = true;
+      }
+    }
+  }
+
   launcher.addEventListener("click", () => setOpen(!shell.classList.contains("fc27-is-open")));
   shell.querySelector("[data-close]").addEventListener("click", () => setOpen(false));
 
@@ -173,6 +308,26 @@
       })
     };
     renderResult(currentTrade);
+  });
+
+  scoutForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(scoutForm);
+    const playerName = String(data.get("scoutPlayer") || "").trim();
+    const maximumBuy = FcMarket.toCoins(data.get("scoutMax"));
+    const expectedSale = FcMarket.toCoins(data.get("scoutSell"));
+    if (!playerName || !maximumBuy) {
+      updateScoutStatus("Inserisci giocatore e prezzo massimo.", "error");
+      return;
+    }
+    runScout({ playerName, maximumBuy, expectedSale });
+  });
+
+  shell.querySelector("[data-scout-stop]").addEventListener("click", () => {
+    scoutRun += 1;
+    shell.querySelector("[data-scout-start]").disabled = false;
+    shell.querySelector("[data-scout-stop]").hidden = true;
+    updateScoutStatus("Ricerca fermata. Nessuna azione eseguita.", "warning");
   });
 
   shell.querySelector("[data-save]").addEventListener("click", async () => {

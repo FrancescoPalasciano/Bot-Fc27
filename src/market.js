@@ -37,7 +37,28 @@
     return "good";
   }
 
-  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade };
+  function parseListingText(text) {
+    const source = String(text || "");
+    const player = source.split(/\r?\n/).map((part) => part.trim()).find((part) =>
+      /[a-zà-ÿ]/i.test(part)
+      && !/^(start price|bid|buy now|time|pac|sho|pas|dri|def|phy)$/i.test(part)
+      && !/^[A-Z]{1,3}$/.test(part)
+    ) || "Giocatore";
+    const match = source.match(/Buy Now:\s*([\d.,]+)/i);
+    return {
+      player,
+      buyNow: match ? toCoins(match[1]) : 0
+    };
+  }
+
+  function chooseBestListing(listings, maximumBuy = 0) {
+    const valid = listings.filter((listing) => listing.buyNow > 0).sort((a, b) => a.buyNow - b.buyNow);
+    if (!valid.length) return null;
+    const withinBudget = maximumBuy > 0 ? valid.find((listing) => listing.buyNow <= maximumBuy) : valid[0];
+    return { ...valid[0], withinBudget: Boolean(withinBudget), ...(withinBudget || {}) };
+  }
+
+  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade, parseListingText, chooseBestListing };
   root.FcMarket = api;
 
   if (typeof module !== "undefined" && module.exports) {
