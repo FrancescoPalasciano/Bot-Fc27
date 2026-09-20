@@ -12,7 +12,7 @@ Estensione Chrome locale per valutare operazioni sul mercato di EA SPORTS FC Ult
 
 ## Installazione locale
 
-1. Apri `chrome://extensions`.
+1. Apri `chrome://extensions` in Chrome oppure `opera://extensions` in Opera.
 2. Attiva **Modalità sviluppatore**.
 3. Seleziona **Carica estensione non pacchettizzata**.
 4. Scegli questa cartella.
