@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { calculateTrade, rateTrade, toCoins, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, summarizePrices, latestObservedPrice, comparePriceSnapshots, normalizeSearchText } = require("../src/market.js");
+const { calculateTrade, rateTrade, toCoins, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, summarizePrices, latestObservedPrice, comparePriceSnapshots, assessMarketSnapshot, buildLocalReport, normalizeSearchText } = require("../src/market.js");
 
 test("normalizza i valori delle monete", () => {
   assert.equal(toCoins("12.500 coins"), 12500);
@@ -100,4 +100,26 @@ test("confronta due rilevazioni del mercato", () => {
     percent: -10
   });
   assert.equal(comparePriceSnapshots({ median: 10000 }, null).direction, "flat");
+});
+
+test("valuta qualità e dispersione del campione prezzi", () => {
+  const strong = assessMarketSnapshot({ count: 6, minimum: 9500, reference: 10000, maximum: 10500 });
+  assert.equal(strong.level, "strong");
+  assert.equal(strong.spreadPercent, 10);
+  assert.equal(assessMarketSnapshot({ count: 2, minimum: 5000, reference: 7000, maximum: 10000 }).level, "weak");
+});
+
+test("genera un report locale senza includere impostazioni estranee", () => {
+  const now = Date.UTC(2026, 8, 20, 12);
+  const report = buildLocalReport({
+    activity: { searches: [now], matches: 2 },
+    savedFilters: [{ player: "Iago Aspas" }],
+    watchlist: [],
+    marketHistory: [{ player: "Iago Aspas", reference: 850 }],
+    enabled: true
+  }, now);
+  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.generatedAt, "2026-09-20T12:00:00.000Z");
+  assert.equal(report.activity.matches, 2);
+  assert.equal("enabled" in report, false);
 });

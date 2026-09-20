@@ -14,6 +14,9 @@ Estensione Chrome locale per valutare operazioni sul mercato di EA SPORTS FC Ult
 - punteggio opportunità 0–100, filtri rapidi salvati e dashboard delle ricerche locali;
 - contatori ultima ora/24 ore e numero di occasioni trovate;
 - storico locale dei prezzi mostrati nei risultati, con minimo, mediana, massimo e confronto con la rilevazione precedente;
+- tre strategie prezzo: prudente, bilanciata e vendita rapida;
+- indicatore di qualità del campione basato su quantità di offerte e dispersione dei prezzi;
+- esportazione JSON di statistiche, filtri, watchlist e storico mercato;
 - soglia di profitto configurabile;
 - watchlist salvata soltanto in `chrome.storage.local`;
 - nessun server, account, cookie o credenziale richiesti.
@@ -30,7 +33,7 @@ Dopo ogni aggiornamento del codice, torna nella pagina delle estensioni, premi *
 
 La versione `0.6.1` riconosce il pulsante **Cerca** soltanto quando è visibile e abilitato, invia la sequenza completa di interazione e rileva la pagina risultati anche quando il titolo usato dalla Web App cambia.
 
-Se il pannello mostra `0 carte FUTBIN`, verifica che la versione dell’estensione sia almeno `0.3.1`, premi **Ricarica** nella pagina delle estensioni e quindi aggiorna la scheda EA. Il catalogo JSON viene caricato soltanto all’avvio del content script.
+Se il pannello mostra `0 carte nel catalogo locale`, premi **Ricarica** nella pagina delle estensioni e quindi aggiorna la scheda EA. Il catalogo JSON viene caricato soltanto all’avvio del content script.
 
 ## Monitor mercato
 
@@ -50,6 +53,16 @@ Le funzioni ispirate ai prodotti di trading automatico sono state implementate i
 ### Mercato osservato
 
 Quando una pagina di risultati contiene offerte, l’estensione salva un riepilogo locale dei prezzi visibili. Nel pannello **Mercato osservato** trovi minimo, mediana, massimo e variazione rispetto alla rilevazione precedente dello stesso giocatore. Lo storico conserva al massimo 120 rilevazioni in `chrome.storage.local` e può essere eliminato dal pannello.
+
+La qualità del campione viene mostrata come **Solida**, **Indicativa** o **Debole** in base al numero di offerte e alla loro dispersione. Non è una garanzia sul prezzo futuro: indica soltanto quanto sono coerenti i risultati appena osservati.
+
+### Strategie ed esportazione
+
+- **Prudente** richiede almeno l’8% di margine sul prezzo rilevato.
+- **Bilanciata** richiede almeno il 5% ed è la strategia predefinita.
+- **Vendita rapida** usa il profitto minimo configurato.
+
+Il comando **Esporta report** crea un file JSON locale con contatori, filtri, watchlist e rilevazioni prezzi. Non include cookie, credenziali o dati dell’account EA.
 
 ### Database giocatori
 

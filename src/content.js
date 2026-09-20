@@ -4,7 +4,7 @@
   if (window.top !== window || document.querySelector("[data-fc27-root]")) return;
 
   const storage = chrome.storage.local;
-  const defaults = { enabled: true, minimumProfit: 500, maximumBuy: 15000, watchlist: [], savedFilters: [], marketHistory: [], activity: { searches: [], matches: 0 } };
+  const defaults = { enabled: true, minimumProfit: 500, maximumBuy: 15000, pricingMode: "recommended", watchlist: [], savedFilters: [], marketHistory: [], activity: { searches: [], matches: 0 } };
   const formatCoins = (value) => new Intl.NumberFormat("it-IT").format(value || 0);
 
   const shell = document.createElement("div");
@@ -57,6 +57,15 @@
           <span>Imposta EA</span>
           <strong>5%</strong>
         </div>
+        <label class="fc27-field fc27-field-wide">
+          <span>Strategia prezzo</span>
+          <select name="pricingMode" data-pricing-mode>
+            <option value="safe">Prudente · margine più alto</option>
+            <option value="recommended" selected>Bilanciata · consigliata</option>
+            <option value="lazy">Vendita rapida · margine minimo</option>
+          </select>
+          <small class="fc27-strategy-hint" data-strategy-hint>Equilibrio tra margine e probabilità di trovare una carta.</small>
+        </label>
         <div class="fc27-quick-actions">
           <button type="button" data-auto-price>Usa prezzo EA rilevato</button>
           <button type="button" data-filter-save>Salva filtro</button>
@@ -102,12 +111,18 @@
           </div>
           <dl class="fc27-market-metrics">
             <div><dt>Minimo</dt><dd data-market-min>0</dd></div>
+            <div><dt>Riferimento</dt><dd data-market-reference>0</dd></div>
             <div><dt>Mediana</dt><dd data-market-median>0</dd></div>
             <div><dt>Massimo</dt><dd data-market-max>0</dd></div>
           </dl>
           <div class="fc27-market-trend" data-market-trend>
             <span data-market-direction>Prima rilevazione</span>
             <strong data-market-change>—</strong>
+          </div>
+          <div class="fc27-market-quality" data-market-quality>
+            <span>Qualità campione</span>
+            <strong data-market-confidence>—</strong>
+            <small data-market-spread>—</small>
           </div>
           <button class="fc27-market-clear" type="button" data-market-clear>Elimina storico prezzi</button>
         </div>
@@ -139,7 +154,10 @@
 
       <footer class="fc27-footer">
         <span><i></i> Dati solo su questo dispositivo</span>
-        <button type="button" data-clear>Azzerare</button>
+        <div class="fc27-footer-actions">
+          <button type="button" data-export>Esporta report</button>
+          <button type="button" data-clear>Azzerare watchlist</button>
+        </div>
       </footer>
     </aside>
   `;
@@ -234,6 +252,21 @@
     return Array.isArray(settings.marketHistory) ? settings.marketHistory : [];
   }
 
+  function currentPricingMode() {
+    return ["safe", "recommended", "lazy"].includes(settings.pricingMode) ? settings.pricingMode : "recommended";
+  }
+
+  function renderPricingMode() {
+    const select = form.elements.pricingMode;
+    const hints = {
+      safe: "Chiede almeno l’8% di margine sul prezzo di riferimento.",
+      recommended: "Equilibrio tra margine e probabilità di trovare una carta.",
+      lazy: "Usa il profitto minimo impostato per privilegiare la velocità."
+    };
+    select.value = currentPricingMode();
+    shell.querySelector("[data-strategy-hint]").textContent = hints[currentPricingMode()];
+  }
+
   function observedPrice(playerName) {
     return FcMarket.latestObservedPrice(marketHistory(), playerName);
   }
@@ -261,17 +294,23 @@
     if (!latest) return;
 
     const trend = FcMarket.comparePriceSnapshots(latest, previous);
+    const quality = FcMarket.assessMarketSnapshot(latest);
     const trendLabels = { up: "Mediana in aumento", down: "Mediana in calo", flat: previous ? "Mediana stabile" : "Prima rilevazione" };
+    const qualityLabels = { strong: "Solida", medium: "Indicativa", weak: "Debole" };
     summary.dataset.trend = trend.direction;
+    summary.dataset.quality = quality.level;
     shell.querySelector("[data-market-player]").textContent = latest.player;
     shell.querySelector("[data-market-time]").textContent = new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(latest.timestamp);
     shell.querySelector("[data-market-min]").textContent = formatCoins(latest.minimum);
+    shell.querySelector("[data-market-reference]").textContent = formatCoins(latest.reference || latest.minimum);
     shell.querySelector("[data-market-median]").textContent = formatCoins(latest.median);
     shell.querySelector("[data-market-max]").textContent = formatCoins(latest.maximum);
     shell.querySelector("[data-market-direction]").textContent = trendLabels[trend.direction];
     shell.querySelector("[data-market-change]").textContent = previous
       ? `${trend.change > 0 ? "+" : ""}${formatCoins(trend.change)} · ${trend.percent > 0 ? "+" : ""}${trend.percent.toFixed(1)}%`
       : `${latest.count} ${latest.count === 1 ? "offerta" : "offerte"}`;
+    shell.querySelector("[data-market-confidence]").textContent = qualityLabels[quality.level];
+    shell.querySelector("[data-market-spread]").textContent = `${quality.count} offerte · dispersione ${quality.spreadPercent.toFixed(1)}%`;
   }
 
   async function recordMarketSnapshot(player, listings) {
@@ -307,15 +346,19 @@
       return;
     }
     filters.forEach((filter) => {
+      const modeLabels = { safe: "prudente", recommended: "bilanciata", lazy: "rapida" };
       const row = document.createElement("div");
       row.className = "fc27-filter-chip";
       row.innerHTML = `<button type="button" data-load><strong></strong><span></span></button><button type="button" data-remove aria-label="Rimuovi filtro">×</button>`;
       row.querySelector("strong").textContent = filter.player;
-      row.querySelector("span").textContent = `≤ ${formatCoins(filter.buyPrice)} · vendita ${formatCoins(filter.sellPrice)}`;
+      row.querySelector("span").textContent = `≤ ${formatCoins(filter.buyPrice)} · vendita ${formatCoins(filter.sellPrice)} · ${modeLabels[filter.pricingMode] || "bilanciata"}`;
       row.querySelector("[data-load]").addEventListener("click", () => {
         form.elements.player.value = filter.player;
         form.elements.buyPrice.value = formatCoins(filter.buyPrice);
         form.elements.sellPrice.value = formatCoins(filter.sellPrice);
+        settings.pricingMode = ["safe", "recommended", "lazy"].includes(filter.pricingMode) ? filter.pricingMode : settings.pricingMode;
+        storage.set({ pricingMode: settings.pricingMode });
+        renderPricingMode();
         updatePlayerMeta(playerIndex.find((player) => player.name === filter.player));
       });
       row.querySelector("[data-remove]").addEventListener("click", async () => {
@@ -602,7 +645,7 @@
         const snapshot = await recordMarketSnapshot(playerName, listings);
 
         if (discoveryOnly && snapshot) {
-          const pricing = FcMarket.suggestPricing(snapshot.reference, settings.minimumProfit, "recommended");
+          const pricing = FcMarket.suggestPricing(snapshot.reference, settings.minimumProfit, currentPricingMode());
           form.elements.buyPrice.value = formatCoins(pricing.maximumBuy);
           form.elements.sellPrice.value = formatCoins(pricing.sellPrice);
           currentTrade = {
@@ -714,7 +757,7 @@
       updateScoutStatus("Nessun prezzo EA recente per questo giocatore. Inserisci un limite manuale ed esegui una ricerca per registrarlo.", "warning");
       return;
     }
-    const pricing = FcMarket.suggestPricing(observed.price, settings.minimumProfit, "recommended");
+    const pricing = FcMarket.suggestPricing(observed.price, settings.minimumProfit, currentPricingMode());
     form.elements.buyPrice.value = formatCoins(pricing.maximumBuy);
     form.elements.sellPrice.value = formatCoins(pricing.sellPrice);
     updateScoutStatus(`Prezzo EA osservato ${observationAge(observed.updatedAt)} su ${observed.sampleSize} offerte: compra fino a ${formatCoins(pricing.maximumBuy)}, vendita ${formatCoins(pricing.sellPrice)}.`, "success");
@@ -728,7 +771,7 @@
       updateScoutStatus("Completa giocatore, acquisto e vendita prima di salvare il filtro.", "warning");
       return;
     }
-    const savedFilter = { id: crypto.randomUUID(), player, buyPrice, sellPrice };
+    const savedFilter = { id: crypto.randomUUID(), player, buyPrice, sellPrice, pricingMode: currentPricingMode() };
     const previous = Array.isArray(settings.savedFilters) ? settings.savedFilters : [];
     settings.savedFilters = [savedFilter, ...previous.filter((entry) => entry.player.toLocaleLowerCase() !== player.toLocaleLowerCase())].slice(0, 12);
     await storage.set({ savedFilters: settings.savedFilters });
@@ -763,6 +806,28 @@
     updateScoutStatus("Storico prezzi eliminato dal dispositivo.", "success");
   });
 
+  form.elements.pricingMode.addEventListener("change", async () => {
+    settings.pricingMode = form.elements.pricingMode.value;
+    await storage.set({ pricingMode: settings.pricingMode });
+    renderPricingMode();
+    updateScoutStatus("Strategia prezzo aggiornata. Verrà usata per i prossimi suggerimenti.", "success");
+  });
+
+  shell.querySelector("[data-export]").addEventListener("click", () => {
+    const report = FcMarket.buildLocalReport(settings);
+    const blob = new Blob([`${JSON.stringify(report, null, 2)}\n`], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `fc27-market-report-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.hidden = true;
+    shell.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    updateScoutStatus("Report locale esportato in JSON.", "success");
+  });
+
   storage.get(defaults).then((saved) => {
     settings = saved;
     shell.hidden = !settings.enabled;
@@ -770,6 +835,7 @@
     renderSavedFilters();
     renderDashboard();
     renderMarketInsights();
+    renderPricingMode();
   });
 
   loadPlayerIndex();
@@ -781,5 +847,6 @@
     renderSavedFilters();
     renderDashboard();
     renderMarketInsights();
+    renderPricingMode();
   });
 })();

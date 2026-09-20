@@ -139,6 +139,39 @@
     };
   }
 
+  function assessMarketSnapshot(snapshot) {
+    const count = toCoins(snapshot?.count);
+    const minimum = toCoins(snapshot?.minimum);
+    const maximum = toCoins(snapshot?.maximum);
+    const reference = toCoins(snapshot?.reference || snapshot?.median);
+    if (!count || !minimum || !maximum || !reference) return { level: "weak", count, spreadPercent: 0 };
+    const spreadPercent = reference > 0 && maximum >= minimum
+      ? ((maximum - minimum) / reference) * 100
+      : 0;
+    const level = count >= 5 && spreadPercent <= 15
+      ? "strong"
+      : count >= 3 && spreadPercent <= 35
+        ? "medium"
+        : "weak";
+    return { level, count, spreadPercent };
+  }
+
+  function buildLocalReport(source, now = Date.now()) {
+    const safeArray = (value) => Array.isArray(value) ? value : [];
+    const activity = source?.activity && typeof source.activity === "object" ? source.activity : {};
+    return {
+      schemaVersion: 1,
+      generatedAt: new Date(now).toISOString(),
+      activity: {
+        searches: safeArray(activity.searches),
+        matches: toCoins(activity.matches)
+      },
+      savedFilters: safeArray(source?.savedFilters),
+      watchlist: safeArray(source?.watchlist),
+      marketHistory: safeArray(source?.marketHistory)
+    };
+  }
+
   function normalizeSearchText(value) {
     return String(value || "")
       .normalize("NFD")
@@ -148,7 +181,7 @@
       .toLocaleLowerCase();
   }
 
-  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, summarizePrices, latestObservedPrice, comparePriceSnapshots, normalizeSearchText };
+  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity, summarizePrices, latestObservedPrice, comparePriceSnapshots, assessMarketSnapshot, buildLocalReport, normalizeSearchText };
   root.FcMarket = api;
 
   if (typeof module !== "undefined" && module.exports) {
