@@ -31,6 +31,7 @@ test("il catalogo locale contiene la carta usata nel flusso di prova", () => {
 
 test("il manifest espone il catalogo JSON alle pagine EA", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.json"), "utf8"));
-  const resources = manifest.web_accessible_resources.flatMap((entry) => entry.resources);
-  assert.ok(resources.includes("data/players.json"));
+  const declaration = manifest.web_accessible_resources.find((entry) => entry.resources.includes("data/players.json"));
+  assert.ok(declaration);
+  assert.deepEqual(declaration.matches, ["https://www.ea.com/*"]);
 });
