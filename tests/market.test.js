@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { calculateTrade, rateTrade, toCoins, parseListingText, chooseBestListing } = require("../src/market.js");
+const { calculateTrade, rateTrade, toCoins, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity } = require("../src/market.js");
 
 test("normalizza i valori delle monete", () => {
   assert.equal(toCoins("12.500 coins"), 12500);
@@ -39,4 +39,24 @@ test("segnala quando la migliore offerta supera il budget", () => {
   const best = chooseBestListing([{ buyNow: 900 }, { buyNow: 800 }], 700);
   assert.equal(best.buyNow, 800);
   assert.equal(best.withinBudget, false);
+});
+
+test("suggerisce prezzi che includono tassa e profitto minimo", () => {
+  const pricing = suggestPricing(10000, 500, "recommended");
+  assert.deepEqual(pricing, { sellPrice: 10000, maximumBuy: 9000, mode: "recommended" });
+  const trade = calculateTrade({ buyPrice: pricing.maximumBuy, sellPrice: pricing.sellPrice });
+  assert.equal(trade.profitPerItem, 500);
+});
+
+test("attribuisce un punteggio più alto alle occasioni migliori", () => {
+  const thin = calculateTrade({ buyPrice: 9000, sellPrice: 10000 });
+  const strong = calculateTrade({ buyPrice: 7000, sellPrice: 10000 });
+  assert.ok(scoreOpportunity(strong, 500) > scoreOpportunity(thin, 500));
+  assert.equal(scoreOpportunity(calculateTrade({ buyPrice: 11000, sellPrice: 10000 }), 500), 0);
+});
+
+test("riassume le ricerche locali dell'ultima ora e giornata", () => {
+  const now = Date.UTC(2026, 8, 20, 12);
+  const summary = summarizeActivity([now - 1000, now - 2 * 60 * 60 * 1000, now - 25 * 60 * 60 * 1000], now);
+  assert.deepEqual(summary, { lastHour: 1, lastDay: 2 });
 });

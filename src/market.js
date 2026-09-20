@@ -58,7 +58,39 @@
     return { ...valid[0], withinBudget: Boolean(withinBudget), ...(withinBudget || {}) };
   }
 
-  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade, parseListingText, chooseBestListing };
+  function roundCoins(value, step = 50) {
+    return Math.max(0, Math.floor(toCoins(value) / step) * step);
+  }
+
+  function suggestPricing(marketPrice, minimumProfit = 500, mode = "recommended") {
+    const sellPrice = roundCoins(marketPrice);
+    if (!sellPrice) return { sellPrice: 0, maximumBuy: 0, mode };
+    const netSale = sellPrice - Math.floor(sellPrice * TAX_RATE);
+    const extraMargin = {
+      safe: Math.max(toCoins(minimumProfit), Math.round(sellPrice * 0.08)),
+      recommended: Math.max(toCoins(minimumProfit), Math.round(sellPrice * 0.05)),
+      lazy: toCoins(minimumProfit)
+    }[mode] ?? toCoins(minimumProfit);
+    return { sellPrice, maximumBuy: roundCoins(netSale - extraMargin), mode };
+  }
+
+  function scoreOpportunity(result, minimumProfit = 500) {
+    if (!result?.buyPrice || !result?.sellPrice || result.profitPerItem <= 0) return 0;
+    const profitTarget = Math.max(1, toCoins(minimumProfit));
+    const profitScore = Math.min(55, (result.profitPerItem / profitTarget) * 35);
+    const roiScore = Math.min(35, Math.max(0, result.roi) * 1.5);
+    const liquidityScore = result.sellPrice <= 150000 ? 10 : 5;
+    return Math.max(0, Math.min(100, Math.round(profitScore + roiScore + liquidityScore)));
+  }
+
+  function summarizeActivity(searchTimestamps, now = Date.now()) {
+    const timestamps = Array.isArray(searchTimestamps) ? searchTimestamps.filter(Number.isFinite) : [];
+    const lastHour = timestamps.filter((timestamp) => now - timestamp < 60 * 60 * 1000).length;
+    const lastDay = timestamps.filter((timestamp) => now - timestamp < 24 * 60 * 60 * 1000).length;
+    return { lastHour, lastDay };
+  }
+
+  const api = { TAX_RATE, toCoins, calculateTrade, rateTrade, parseListingText, chooseBestListing, suggestPricing, scoreOpportunity, summarizeActivity };
   root.FcMarket = api;
 
   if (typeof module !== "undefined" && module.exports) {

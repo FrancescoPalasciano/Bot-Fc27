@@ -13,6 +13,10 @@
 .fc27-icon-button { flex: 0 0 36px; height: 36px; border: 1px solid var(--fc-line); border-radius: 50%; background: transparent; color: var(--fc-text); font-size: 24px; cursor: pointer; }
 .fc27-notice { display: flex; align-items: center; gap: 9px; margin: 20px 0; padding: 11px 13px; border: 1px solid #38452b; border-radius: 9px; background: #192015; color: #dcebc7; font-size: 12px; }
 .fc27-notice-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fc-accent); box-shadow: 0 0 0 4px rgba(198,255,74,.12); }
+.fc27-dashboard { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: -4px 0 18px; overflow: hidden; border: 1px solid var(--fc-line); border-radius: 9px; background: var(--fc-line); }
+.fc27-dashboard div { padding: 10px; background: #151915; }
+.fc27-dashboard span, .fc27-dashboard small { display: block; color: var(--fc-muted); font-size: 8px; }
+.fc27-dashboard strong { display: block; margin: 3px 0 1px; color: var(--fc-accent); font-size: 18px; }
 .fc27-scout { margin-bottom: 28px; padding-bottom: 26px; border-bottom: 1px solid var(--fc-line); }
 .fc27-section-title--compact { margin-bottom: 14px; padding-bottom: 0; border-bottom: 0; }
 .fc27-scout-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -41,6 +45,9 @@
 .fc27-player-suggestions strong, .fc27-player-suggestions span { display: block; }
 .fc27-player-suggestions strong { font-size: 12px; }
 .fc27-player-suggestions span { margin-top: 3px; color: var(--fc-muted); font-size: 9px; }
+.fc27-quick-actions { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fc27-quick-actions button { min-height: 34px; border: 1px solid #3c4735; border-radius: 7px; background: #171c15; color: #dce4d6; font-size: 10px; font-weight: 800; cursor: pointer; }
+.fc27-quick-actions button:hover { border-color: var(--fc-accent); color: var(--fc-accent); }
 .fc27-readonly { align-content: center; }
 .fc27-readonly span { font-size: 10px; }
 .fc27-readonly strong { font-size: 16px; }
@@ -49,6 +56,8 @@
 .fc27-primary:disabled { cursor: wait; filter: grayscale(.4); opacity: .65; }
 .fc27-result { margin-top: 18px; padding: 18px; border: 1px solid #40552b; border-radius: 11px; background: linear-gradient(145deg, #1b2415, #151a13); }
 .fc27-score-row { display: flex; justify-content: space-between; align-items: flex-start; }
+.fc27-score-badges { display: grid; justify-items: end; gap: 6px; }
+.fc27-opportunity { color: var(--fc-muted); font-size: 9px; font-weight: 900; letter-spacing: .08em; }
 .fc27-profit { font-size: 34px; letter-spacing: -.04em; }
 .fc27-status { padding: 6px 9px; border-radius: 100px; background: var(--fc-accent); color: #12160d; font-size: 10px; font-weight: 900; }
 .fc27-result[data-rating="loss"] .fc27-profit { color: var(--fc-danger); }
@@ -60,7 +69,16 @@
 .fc27-metrics span { margin-bottom: 4px; color: var(--fc-muted); font-size: 9px; }
 .fc27-metrics strong { font-size: 13px; }
 .fc27-secondary { width: 100%; min-height: 40px; border: 1px solid #566349; border-radius: 7px; background: transparent; color: var(--fc-text); font-weight: 800; cursor: pointer; }
-.fc27-watch { margin-top: 30px; }
+.fc27-filters, .fc27-watch { margin-top: 30px; }
+.fc27-filter-list { display: grid; gap: 7px; padding-top: 10px; }
+.fc27-filter-list > small { padding: 8px 0; color: var(--fc-muted); }
+.fc27-filter-chip { display: grid; grid-template-columns: 1fr 30px; gap: 4px; }
+.fc27-filter-chip button { border: 1px solid #30372f; background: #151915; color: var(--fc-text); cursor: pointer; }
+.fc27-filter-chip [data-load] { padding: 9px 10px; border-radius: 7px 0 0 7px; text-align: left; }
+.fc27-filter-chip [data-remove] { border-radius: 0 7px 7px 0; color: var(--fc-muted); font-size: 16px; }
+.fc27-filter-chip strong, .fc27-filter-chip span { display: block; }
+.fc27-filter-chip strong { font-size: 11px; }
+.fc27-filter-chip span { margin-top: 3px; color: var(--fc-muted); font-size: 9px; }
 .fc27-section-title { display: flex; justify-content: space-between; align-items: end; padding-bottom: 12px; border-bottom: 1px solid var(--fc-line); }
 .fc27-section-title h2 { margin: 0; font-size: 20px; }
 .fc27-section-title > span { color: var(--fc-muted); font-size: 10px; text-transform: uppercase; }

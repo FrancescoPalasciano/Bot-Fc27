@@ -8,6 +8,9 @@ Estensione Chrome locale per valutare operazioni sul mercato di EA SPORTS FC Ult
 - monitor assistito: apre Trasferimenti, seleziona il giocatore e ripete la ricerca ogni 15 secondi, fino a 20 tentativi;
 - autocomplete locale basato su `data/players.json`, con nome, overall e ultimo prezzo FUTBIN disponibile;
 - calcolo della tassa EA del 5%, utile netto, utile totale e ROI;
+- prezzo massimo suggerito dal prezzo locale, con tassa e utile minimo inclusi;
+- punteggio opportunità 0–100, filtri rapidi salvati e dashboard delle ricerche locali;
+- contatori ultima ora/24 ore e numero di occasioni trovate;
 - soglia di profitto configurabile;
 - watchlist salvata soltanto in `chrome.storage.local`;
 - nessun server, account, cookie o credenziale richiesti.
@@ -34,6 +37,8 @@ Se il pannello mostra `0 carte FUTBIN`, verifica che la versione dell’estensio
 6. Controlla carta e prezzo, quindi decidi manualmente se acquistare.
 
 Il monitor non preme **Compra ora** e non conferma transazioni. Puoi fermarlo in qualsiasi momento.
+
+Le funzioni ispirate ai prodotti di trading automatico sono state implementate in forma assistita: pricing, punteggio, filtri, limiti e statistiche. Auto-acquisto, auto-vendita, auto-bid, aggiramento di CAPTCHA e simulazione “umana” non sono inclusi.
 
 ### Database giocatori
 

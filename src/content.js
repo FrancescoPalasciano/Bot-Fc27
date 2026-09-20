@@ -4,7 +4,7 @@
   if (window.top !== window || document.querySelector("[data-fc27-root]")) return;
 
   const storage = chrome.storage.local;
-  const defaults = { enabled: true, minimumProfit: 500, maximumBuy: 15000, watchlist: [] };
+  const defaults = { enabled: true, minimumProfit: 500, maximumBuy: 15000, watchlist: [], savedFilters: [], activity: { searches: [], matches: 0 } };
   const formatCoins = (value) => new Intl.NumberFormat("it-IT").format(value || 0);
 
   const shell = document.createElement("div");
@@ -27,6 +27,12 @@
         <span class="fc27-notice-dot"></span>
         Lo Scout si ferma sempre prima dell’acquisto.
       </div>
+
+      <section class="fc27-dashboard" aria-label="Riepilogo locale">
+        <div><span>ULTIMA ORA</span><strong data-searches-hour>0</strong><small>ricerche</small></div>
+        <div><span>24 ORE</span><strong data-searches-day>0</strong><small>ricerche</small></div>
+        <div><span>TROVATI</span><strong data-matches>0</strong><small>occasioni</small></div>
+      </section>
 
       <form class="fc27-form" data-trade-form>
         <label class="fc27-field fc27-field-wide">
@@ -51,6 +57,10 @@
           <span>Imposta EA</span>
           <strong>5%</strong>
         </div>
+        <div class="fc27-quick-actions">
+          <button type="button" data-auto-price>Usa prezzo locale</button>
+          <button type="button" data-filter-save>Salva filtro</button>
+        </div>
         <button class="fc27-primary" type="submit" data-scout-start>Analizza e monitora <span>→</span></button>
         <button class="fc27-secondary fc27-scout-stop" type="button" data-scout-stop hidden>Ferma monitor</button>
       </form>
@@ -66,7 +76,7 @@
             <p class="fc27-eyebrow">UTILE NETTO</p>
             <strong class="fc27-profit" data-profit>0</strong>
           </div>
-          <span class="fc27-status" data-status>—</span>
+          <div class="fc27-score-badges"><span class="fc27-opportunity" data-score>0/100</span><span class="fc27-status" data-status>—</span></div>
         </div>
         <div class="fc27-metrics">
           <div><span>Netto vendita</span><strong data-net>0</strong></div>
@@ -74,6 +84,14 @@
           <div><span>Totale</span><strong data-total>0</strong></div>
         </div>
         <button class="fc27-secondary" type="button" data-save>+ Salva in watchlist</button>
+      </section>
+
+      <section class="fc27-filters">
+        <div class="fc27-section-title">
+          <div><p class="fc27-eyebrow">FILTRI RAPIDI</p><h2>Salvati</h2></div>
+          <span data-filter-count>0 filtri</span>
+        </div>
+        <div class="fc27-filter-list" data-filter-list><small>Nessun filtro salvato.</small></div>
       </section>
 
       <section class="fc27-watch">
@@ -169,6 +187,61 @@
     resultBox.querySelector("[data-roi]").textContent = `${trade.roi.toFixed(1)}%`;
     resultBox.querySelector("[data-total]").textContent = `${trade.totalProfit >= 0 ? "+" : ""}${formatCoins(trade.totalProfit)}`;
     resultBox.querySelector("[data-status]").textContent = status[0];
+    resultBox.querySelector("[data-score]").textContent = `${FcMarket.scoreOpportunity(trade, settings.minimumProfit)}/100`;
+  }
+
+  function activityData() {
+    const activity = settings.activity && typeof settings.activity === "object" ? settings.activity : {};
+    return { searches: Array.isArray(activity.searches) ? activity.searches : [], matches: Number(activity.matches) || 0 };
+  }
+
+  function renderDashboard() {
+    const activity = activityData();
+    const summary = FcMarket.summarizeActivity(activity.searches);
+    shell.querySelector("[data-searches-hour]").textContent = summary.lastHour;
+    shell.querySelector("[data-searches-day]").textContent = summary.lastDay;
+    shell.querySelector("[data-matches]").textContent = activity.matches;
+  }
+
+  async function recordActivity(kind) {
+    const activity = activityData();
+    if (kind === "search") activity.searches = [...activity.searches.filter((timestamp) => Date.now() - timestamp < 24 * 60 * 60 * 1000), Date.now()];
+    if (kind === "match") activity.matches += 1;
+    settings.activity = activity;
+    await storage.set({ activity });
+    renderDashboard();
+  }
+
+  function renderSavedFilters() {
+    const list = shell.querySelector("[data-filter-list]");
+    const filters = Array.isArray(settings.savedFilters) ? settings.savedFilters : [];
+    shell.querySelector("[data-filter-count]").textContent = `${filters.length} ${filters.length === 1 ? "filtro" : "filtri"}`;
+    list.replaceChildren();
+    if (!filters.length) {
+      const empty = document.createElement("small");
+      empty.textContent = "Nessun filtro salvato.";
+      list.appendChild(empty);
+      return;
+    }
+    filters.forEach((filter) => {
+      const row = document.createElement("div");
+      row.className = "fc27-filter-chip";
+      row.innerHTML = `<button type="button" data-load><strong></strong><span></span></button><button type="button" data-remove aria-label="Rimuovi filtro">×</button>`;
+      row.querySelector("strong").textContent = filter.player;
+      row.querySelector("span").textContent = `≤ ${formatCoins(filter.buyPrice)} · vendita ${formatCoins(filter.sellPrice)}`;
+      row.querySelector("[data-load]").addEventListener("click", () => {
+        form.elements.player.value = filter.player;
+        form.elements.buyPrice.value = formatCoins(filter.buyPrice);
+        form.elements.sellPrice.value = formatCoins(filter.sellPrice);
+        updatePlayerMeta(playerIndex.find((player) => player.name === filter.player));
+      });
+      row.querySelector("[data-remove]").addEventListener("click", async () => {
+        settings.savedFilters = filters.filter((entry) => entry.id !== filter.id);
+        await storage.set({ savedFilters: settings.savedFilters });
+        renderSavedFilters();
+      });
+      list.appendChild(row);
+    });
   }
 
   function updateScoutStatus(message, state = "working") {
@@ -352,6 +425,7 @@
         updateScoutStatus(`Tentativo ${attempt}/${MAX_ATTEMPTS}: cerco offerte…`);
         const searchButton = await waitFor(() => buttonByText("Search") || buttonByText("Cerca"), 5000, 80, runId, "Pulsante Cerca non trovato");
         clickAction(searchButton);
+        await recordActivity("search");
         await waitFor(() => findHeading("Search Results", "Risultati di ricerca"), 10000, 100, runId, "La ricerca non ha aperto la pagina dei risultati");
 
         const rows = [...document.querySelectorAll(".paginated-item-list .listFUTItem")];
@@ -368,6 +442,7 @@
             player: playerName,
             ...FcMarket.calculateTrade({ buyPrice: best.buyNow, sellPrice: expectedSale, quantity: 1 })
           };
+          await recordActivity("match");
           renderResult(currentTrade);
           updateScoutStatus(`${playerName} trovato a ${formatCoins(best.buyNow)} crediti. Verifica e acquista manualmente.`, "success");
           setTimeout(() => setOpen(false), 900);
@@ -437,6 +512,35 @@
     }, 120);
   });
 
+  shell.querySelector("[data-auto-price]").addEventListener("click", () => {
+    const name = form.elements.player.value.trim().toLocaleLowerCase();
+    const player = playerIndex.find((entry) => entry.name.toLocaleLowerCase() === name);
+    if (!player?.price) {
+      updateScoutStatus("Seleziona una carta con prezzo locale disponibile.", "warning");
+      return;
+    }
+    const pricing = FcMarket.suggestPricing(player.price, settings.minimumProfit, "recommended");
+    form.elements.buyPrice.value = formatCoins(pricing.maximumBuy);
+    form.elements.sellPrice.value = formatCoins(pricing.sellPrice);
+    updateScoutStatus(`Prezzi suggeriti da FUTBIN locale: compra fino a ${formatCoins(pricing.maximumBuy)}, vendita ${formatCoins(pricing.sellPrice)}. Verifica sempre sul mercato.`, "success");
+  });
+
+  shell.querySelector("[data-filter-save]").addEventListener("click", async () => {
+    const player = form.elements.player.value.trim();
+    const buyPrice = FcMarket.toCoins(form.elements.buyPrice.value);
+    const sellPrice = FcMarket.toCoins(form.elements.sellPrice.value);
+    if (!player || !buyPrice || !sellPrice) {
+      updateScoutStatus("Completa giocatore, acquisto e vendita prima di salvare il filtro.", "warning");
+      return;
+    }
+    const savedFilter = { id: crypto.randomUUID(), player, buyPrice, sellPrice };
+    const previous = Array.isArray(settings.savedFilters) ? settings.savedFilters : [];
+    settings.savedFilters = [savedFilter, ...previous.filter((entry) => entry.player.toLocaleLowerCase() !== player.toLocaleLowerCase())].slice(0, 12);
+    await storage.set({ savedFilters: settings.savedFilters });
+    renderSavedFilters();
+    updateScoutStatus(`Filtro ${player} salvato sul dispositivo.`, "success");
+  });
+
   shell.querySelector("[data-scout-stop]").addEventListener("click", () => {
     scoutRun += 1;
     shell.querySelector("[data-scout-start]").disabled = false;
@@ -461,6 +565,8 @@
     settings = saved;
     shell.hidden = !settings.enabled;
     renderWatchlist();
+    renderSavedFilters();
+    renderDashboard();
   });
 
   loadPlayerIndex();
@@ -469,5 +575,7 @@
     Object.entries(changes).forEach(([key, change]) => { settings[key] = change.newValue; });
     shell.hidden = !settings.enabled;
     renderWatchlist();
+    renderSavedFilters();
+    renderDashboard();
   });
 })();
