@@ -288,6 +288,19 @@
     return true;
   }
 
+  function activatePlayerSuggestion(node) {
+    const target = node?.closest("button") || node;
+    if (!target) return false;
+    target.scrollIntoView({ block: "nearest" });
+    target.focus({ preventScroll: true });
+    ["pointerdown", "mousedown", "pointerup", "mouseup"].forEach((type) => {
+      const EventType = type.startsWith("pointer") && typeof PointerEvent === "function" ? PointerEvent : MouseEvent;
+      target.dispatchEvent(new EventType(type, { bubbles: true, cancelable: true, view: window, button: 0 }));
+    });
+    target.click();
+    return true;
+  }
+
   function transferNavigationButton() {
     return document.querySelector("button.ut-tab-bar-item.icon-transfer, button[class*='icon-transfer']")
       || [...document.querySelectorAll("button")].find((button) => /^(transfers|trasferimenti)$/i.test(button.textContent.trim()));
@@ -415,12 +428,25 @@
         return candidates.find((button) => FcMarket.normalizeSearchText(button.querySelector(".btn-text")?.textContent || button.textContent).includes(query)) || candidates[0];
       }, 7000, 80, runId, `La Web App non propone ${playerName}: seleziona una carta valida dall’autocompletamento`);
       const selectedPlayerName = suggestion.querySelector(".btn-text")?.textContent?.trim() || playerName;
-      clickAction(suggestion);
-      await waitFor(() => {
-        const confirmedName = FcMarket.normalizeSearchText(playerInput.value) === FcMarket.normalizeSearchText(selectedPlayerName);
-        const openChoices = document.querySelectorAll(".playerResultsList button").length;
-        return confirmedName && openChoices === 0 ? playerInput : null;
-      }, 5000, 80, runId, `La Web App non ha confermato la carta ${selectedPlayerName}`);
+      let playerConfirmed = false;
+      for (let selectionAttempt = 0; selectionAttempt < 3 && !playerConfirmed; selectionAttempt += 1) {
+        const currentSuggestion = [...document.querySelectorAll(".playerResultsList button")]
+          .find((button) => FcMarket.normalizeSearchText(button.querySelector(".btn-text")?.textContent || button.textContent) === FcMarket.normalizeSearchText(selectedPlayerName));
+        activatePlayerSuggestion(currentSuggestion || suggestion);
+        try {
+          await waitFor(() => {
+            const confirmedName = FcMarket.normalizeSearchText(playerInput.value) === FcMarket.normalizeSearchText(selectedPlayerName);
+            const openChoices = document.querySelectorAll(".playerResultsList button").length;
+            return confirmedName && openChoices === 0 ? playerInput : null;
+          }, 1400, 80, runId, "");
+          playerConfirmed = true;
+        } catch (error) {
+          if (runId !== scoutRun) throw error;
+        }
+      }
+      const matchingTypedName = FcMarket.normalizeSearchText(playerInput.value) === FcMarket.normalizeSearchText(selectedPlayerName);
+      if (!playerConfirmed && !matchingTypedName) throw new Error(`La Web App non ha selezionato la carta ${selectedPlayerName}`);
+      await new Promise((resolve) => setTimeout(resolve, 350));
 
       const priceInputs = await waitFor(() => {
         const inputs = [...document.querySelectorAll("input.ut-number-input-control")];

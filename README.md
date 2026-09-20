@@ -7,6 +7,7 @@ Estensione Chrome locale per valutare operazioni sul mercato di EA SPORTS FC Ult
 - pannello laterale integrato nella Web App;
 - monitor assistito: apre Trasferimenti, seleziona il giocatore e ripete la ricerca ogni 15 secondi, fino a 20 tentativi;
 - autocomplete locale basato su `data/players.json`, con nome, overall e ultimo prezzo FUTBIN disponibile;
+- 544 giocatori base Serie A (Oro e Argento) raccolti dal filtro pubblico FUTBIN della lega;
 - calcolo della tassa EA del 5%, utile netto, utile totale e ROI;
 - prezzo massimo suggerito dal prezzo locale, con tassa e utile minimo inclusi;
 - punteggio opportunità 0–100, filtri rapidi salvati e dashboard delle ricerche locali;
@@ -42,7 +43,7 @@ Le funzioni ispirate ai prodotti di trading automatico sono state implementate i
 
 ### Database giocatori
 
-`data/players.json` contiene record provenienti dalle pagine pubbliche FUTBIN, con origine, data e copertura dichiarate. FUTBIN espone centinaia di pagine e blocca richieste automatizzate non-browser: il file iniziale è quindi un indice incrementale, non viene dichiarato completo e non aggira le protezioni del sito. I prezzi possono diventare rapidamente obsoleti e `0` significa “non disponibile”.
+`data/players.json` contiene record provenienti dalle pagine pubbliche FUTBIN, con origine, data e copertura dichiarate. Include il catalogo base Serie A disponibile nel filtro lega 31 al momento della raccolta; il catalogo generale resta incrementale e non viene dichiarato completo. I prezzi possono diventare rapidamente obsoleti e `0` significa “non disponibile”.
 
 ## Sviluppo
 

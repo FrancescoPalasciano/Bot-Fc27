@@ -18,7 +18,7 @@ test("ogni carta ha nome, overall, prezzo e URL", () => {
     assert.ok(player.name.length > 0);
     assert.ok(Number.isInteger(player.overall));
     assert.ok(Number.isInteger(player.price));
-    assert.match(player.url, /^https:\/\/www\.futbin\.com\/27\/player\//);
+    assert.match(player.url, /^https:\/\/www\.futbin\.com\/27\/(player\/|players\?league=31)/);
   });
 });
 
@@ -27,6 +27,15 @@ test("il catalogo locale contiene la carta usata nel flusso di prova", () => {
   assert.ok(iago);
   assert.equal(iago.overall, 81);
   assert.ok(iago.price > 0);
+});
+
+test("il catalogo contiene tutte le carte base Serie A raccolte", () => {
+  const serieA = database.players.filter((player) => player.sourceScope === "serie-a-base");
+  assert.equal(serieA.length, 544);
+  assert.equal(database.collections.serieA.uniquePlayers, 544);
+  assert.ok(serieA.some((player) => player.name === "Lautaro Martínez" && player.overall === 87));
+  assert.ok(serieA.some((player) => player.name === "Nicolò Barella" && player.overall === 87));
+  assert.ok(serieA.every((player) => player.league === "Serie A"));
 });
 
 test("il manifest espone il catalogo JSON alle pagine EA", () => {
